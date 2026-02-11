@@ -1,6 +1,18 @@
 import { headers } from "next/headers";
 
 /**
+ * Calculate relative time string
+ */
+function getTimeAgo(timestamp) {
+    const seconds = Math.floor((Date.now() - timestamp * 1000) / 1000);
+    let interval = seconds / 3600;
+    if (interval > 1) return Math.floor(interval) + "h ago";
+    interval = seconds / 60;
+    if (interval > 1) return Math.floor(interval) + "m ago";
+    return Math.floor(seconds) + "s ago";
+}
+
+/**
  * Fetch top posts from a subreddit
  */
 async function fetchSubreddit(subreddit, limit = 5) {
@@ -23,6 +35,7 @@ async function fetchSubreddit(subreddit, limit = 5) {
             url: `https://www.reddit.com${post.data.permalink}`,
             score: post.data.score,
             source: `r/${subreddit}`,
+            timeAgo: getTimeAgo(post.data.created_utc),
         }));
     } catch (error) {
         console.error(`Error fetching r/${subreddit}:`, error);
