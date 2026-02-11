@@ -51,8 +51,7 @@ export async function getLastDaysTweets(days = 3) {
     await ensureCacheDir();
     try {
         const files = await fs.readdir(CACHE_DIR);
-        // Sort files by date (descending) is tricky with DD-MM-YYYY format
-        // But filenames are strings. Use stats.mtime
+        // Sort files by date (descending) based on mtime
         const fileStats = await Promise.all(
             files.map(async (file) => {
                 const filePath = path.join(CACHE_DIR, file);
@@ -74,5 +73,36 @@ export async function getLastDaysTweets(days = 3) {
     } catch (error) {
         console.warn("Cache read error:", error);
         return [];
+    }
+}
+
+export async function markTweeted(tweetText) {
+    await ensureCacheDir();
+    const today = new Date().toLocaleDateString("en-IN", {
+        timeZone: "Asia/Kolkata"
+    }).replace(/\//g, "-");
+
+    const filePath = path.join(CACHE_DIR, `${today}.json`);
+    try {
+        const data = await fs.readFile(filePath, "utf-8");
+        const tweets = JSON.parse(data);
+
+        let found = false;
+        const updatedTweets = tweets.map(t => {
+            if (t.text === tweetText) {
+                found = true;
+                return { ...t, posted: true };
+            }
+            return t;
+        });
+
+        if (found) {
+            await fs.writeFile(filePath, JSON.stringify(updatedTweets, null, 2));
+            return true;
+        }
+        return false;
+    } catch (error) {
+        console.error("Mark tweeted error:", error);
+        return false;
     }
 }
