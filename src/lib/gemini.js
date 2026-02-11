@@ -96,11 +96,18 @@ export async function generateTweets() {
         throw new Error("No content in Gemini response");
     }
 
-    // Clean JSON
+    // Clean JSON response more robustly
     let jsonStr = content.trim();
-    const jsonMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
-    if (jsonMatch) {
-        jsonStr = jsonMatch[1].trim();
+
+    // Remove markdown code blocks if present
+    jsonStr = jsonStr.replace(/```json/gi, "").replace(/```/g, "").trim();
+
+    // Extract JSON object from potential surrounding text
+    const firstBrace = jsonStr.indexOf("{");
+    const lastBrace = jsonStr.lastIndexOf("}");
+
+    if (firstBrace !== -1 && lastBrace !== -1) {
+        jsonStr = jsonStr.slice(firstBrace, lastBrace + 1);
     }
 
     let parsed;
