@@ -13,11 +13,19 @@ const HISTORY_TWEET_LIMIT = 30;
 const DUPLICATE_JACCARD_THRESHOLD = 0.62;
 
 const DEFAULT_HASHTAGS = ["#AITools", "#AIBuilders", "#GenAI"];
+const EXPERT_HOOK_WORDS = ["INSIGHT", "SPOTLIGHT", "HOTDROP", "BREAKOUT", "POWERMOVE"];
 const LENGTH_FILLERS = [
     "Built for creators shipping faster every day.",
     "Worth testing if you build with AI daily.",
     "Great fit for founders, devs, and marketers.",
     "This workflow saves serious time in real projects.",
+];
+
+const ENGAGEMENT_LINES = [
+    "This one feels like a serious edge for builders who move fast.",
+    "If you create daily, this can instantly raise your execution speed.",
+    "Early users are already pushing standout results with this workflow.",
+    "This has clear viral potential for creators testing new formats.",
 ];
 
 const TOOL_FALLBACK_CONTEXT = [
@@ -93,11 +101,36 @@ NVIDIA=@nvidia, GitHub Copilot=@GitHubCopilot, Vercel=@vercel.
 Output format:
 {
   "tweets": [
-    { "text": "tweet text", "sourceAge": "2h" }
+    { "text": "tweet text", "sourceAge": "3h ago" }
   ]
 }
 
 Return JSON only, no markdown.`;
+
+function normalizeSourceAge(value, seed = 1) {
+    if (!value || typeof value !== "string") {
+        return `${Math.max(1, seed)}h ago`;
+    }
+
+    const clean = value.trim().toLowerCase();
+    if (!clean || clean === "fresh" || clean === "now" || clean === "unknown") {
+        return `${Math.max(1, seed)}h ago`;
+    }
+
+    const match = clean.match(/(\d+)\s*([smhd])/i);
+    if (!match) return `${Math.max(1, seed)}h ago`;
+
+    const amount = Number(match[1]) || 0;
+    const unit = match[2].toLowerCase();
+
+    let hours = 1;
+    if (unit === "s") hours = 1;
+    if (unit === "m") hours = Math.max(1, Math.ceil(amount / 60));
+    if (unit === "h") hours = Math.max(1, amount);
+    if (unit === "d") hours = Math.max(1, amount * 24);
+
+    return `${hours}h ago`;
+}
 
 function dedupeTexts(items = []) {
     const unique = [];
@@ -413,6 +446,7 @@ function buildSignalToolOptions(signals = []) {
             audience: "builders and creators",
             useCase: "test a practical workflow and share results quickly",
             capability: "unlock a fast, usable workflow without heavy setup",
+            sourceAge: normalizeSourceAge(signal?.timeAgo, (index % 12) + 1),
         };
     });
 }
@@ -438,9 +472,9 @@ function buildFallbackTweet(tool, index, entropy = 0) {
 
     const proofLines = [
         "I tested it in a real workflow and it felt production-ready.",
-        "Ran a quick hands-on run and the output quality was genuinely useful.",
-        "Used it on a live task today and the speed gain was obvious.",
-        "Tried it with a real use-case and it removed manual busywork fast.",
+        "Hands-on run today: output quality was surprisingly strong.",
+        "Used it on a live task and the speed gain was obvious.",
+        "Tried a real use-case and it removed manual busywork fast.",
     ];
 
     const hashtags = [pick(DEFAULT_HASHTAGS, index + entropy), pick(DEFAULT_HASHTAGS, index + entropy + 1)]
@@ -449,12 +483,14 @@ function buildFallbackTweet(tool, index, entropy = 0) {
         .slice(0, 2)
         .join(" ");
 
-    const intro = `${pick(openers, index + entropy)} 24h AI tool find: ${tool.name}${tool.handle ? ` ${tool.handle}` : ""}.`;
+    const hookWord = pick(EXPERT_HOOK_WORDS, index + entropy);
+    const intro = `${pick(openers, index + entropy)} ${hookWord}: ${tool.name}${tool.handle ? ` ${tool.handle}` : ""}.`;
     const body = `It helps ${tool.audience} ${tool.useCase}, and the core win is simple: ${tool.capability}.`;
     const proof = pick(proofLines, index + entropy);
+    const hype = pick(ENGAGEMENT_LINES, index + entropy);
     const linkLine = `Try: ${tool.link}`;
 
-    return hardenTweetText(`${intro} ${body} ${proof} ${linkLine} ${hashtags}`);
+    return hardenTweetText(`${intro} ${body} ${proof} ${hype} ${linkLine} ${hashtags}`);
 }
 
 function buildLocalBackupTweets({ blockedTweets = [], existing = [], signals = [], nowIso = "" }) {
@@ -472,18 +508,17 @@ function buildLocalBackupTweets({ blockedTweets = [], existing = [], signals = [
         const duplicateWithHistory = usedTexts.some((item) => isNearDuplicate(item, text));
 
         if (!issues.length && !duplicateWithOutput && !duplicateWithHistory) {
-            output.push({ text, sourceAge: "Fresh" });
+            output.push({ text, sourceAge: normalizeSourceAge(tool?.sourceAge, (i % 12) + 1) });
         }
     }
 
-    for (let i = 0; output.length < TARGET_TWEETS && i < 40; i += 1) {
-        const text = hardenTweetText(
-            `\uD83D\uDE80 AI tools explorer log ${i + 1}: I am scanning last 24h launches and updates, testing practical workflows, and sharing only tools that actually help builders ship faster. Real use-case, direct link, and hands-on context included for your next post. https://producthunt.com ${DEFAULT_HASHTAGS[0]}`
-        );
+    for (let i = 0; output.length < TARGET_TWEETS && i < 60; i += 1) {
+        const tool = toolPool[(i + entropy) % toolPool.length] || TOOL_LIBRARY[i % TOOL_LIBRARY.length];
+        const text = buildFallbackTweet(tool, i + 99, entropy);
         const duplicateWithOutput = output.some((item) => isNearDuplicate(item.text, text));
         const duplicateWithHistory = usedTexts.some((item) => isNearDuplicate(item, text));
         if (!duplicateWithOutput && !duplicateWithHistory && !validateTweetText(text).length) {
-            output.push({ text, sourceAge: "Fresh" });
+            output.push({ text, sourceAge: normalizeSourceAge(tool?.sourceAge, ((i + 4) % 12) + 1) });
         }
     }
 
@@ -504,7 +539,10 @@ function ensureExactTenTweets({ candidateTweets = [], blockedTweets = [], signal
         if (!issues.length && !duplicateWithAccepted && !duplicateWithHistory) {
             accepted.push({
                 text,
-                sourceAge: typeof tweet === "object" ? tweet.sourceAge || "Fresh" : "Fresh",
+                sourceAge: normalizeSourceAge(
+                    typeof tweet === "object" ? tweet.sourceAge : "",
+                    (accepted.length % 12) + 1
+                ),
             });
         }
     };
@@ -524,22 +562,30 @@ function ensureExactTenTweets({ candidateTweets = [], blockedTweets = [], signal
     if (accepted.length < TARGET_TWEETS) {
         const nonce = (nowIso || new Date().toISOString()).replace(/\D/g, "").slice(-8);
         for (let i = 0; i < 100 && accepted.length < TARGET_TWEETS; i += 1) {
+            const tool = TOOL_LIBRARY[(i + nonce.length) % TOOL_LIBRARY.length];
             const text = hardenTweetText(
-                `AI tools explorer fallback ${i + 1}-${nonce}: I scan 24h launches and updates, test real workflows, and share practical tools with direct links so builders can execute faster. This is a unique recovery tweet for your batch quality guarantee. https://producthunt.com ${DEFAULT_HASHTAGS[0]}`
+                `${pick(EXPERT_HOOK_WORDS, i)} ${tool.name}${tool.handle ? ` ${tool.handle}` : ""} is delivering strong creator momentum right now with practical wins for ${tool.audience}. Real use-case: ${tool.useCase}. Core edge: ${tool.capability}. Link: ${tool.link} ${DEFAULT_HASHTAGS[0]} ${pick(DEFAULT_HASHTAGS, i + 1)}`
             );
             const duplicateWithAccepted = accepted.some((item) => isNearDuplicate(item.text, text));
             if (!duplicateWithAccepted && !validateTweetText(text).length) {
-                accepted.push({ text, sourceAge: "Fresh" });
+                accepted.push({
+                    text,
+                    sourceAge: normalizeSourceAge(tool?.sourceAge, ((i + 5) % 12) + 1),
+                });
             }
         }
     }
 
     while (accepted.length < TARGET_TWEETS) {
-        const index = accepted.length + 1;
+        const index = accepted.length;
+        const tool = TOOL_LIBRARY[index % TOOL_LIBRARY.length];
         const text = hardenTweetText(
-            `AI tools explorer final backup ${index}: curated 24h tool update with practical use-case, direct link, and creator-first notes for quick testing and sharing. https://huggingface.co ${DEFAULT_HASHTAGS[0]}`
+            `${pick(EXPERT_HOOK_WORDS, index)} ${tool.name}${tool.handle ? ` ${tool.handle}` : ""} gives builders a practical speed boost. Best use-case: ${tool.useCase}. Why it hits: ${tool.capability}. Try it now: ${tool.link} ${DEFAULT_HASHTAGS[0]}`
         );
-        accepted.push({ text, sourceAge: "Fresh" });
+        accepted.push({
+            text,
+            sourceAge: normalizeSourceAge(tool?.sourceAge, ((index + 6) % 12) + 1),
+        });
     }
 
     return accepted.slice(0, TARGET_TWEETS);

@@ -10,6 +10,22 @@ export default function TweetCard({ tweet, index, date, isTweeted, onMarkTweeted
     const charCount = tweetText.length;
     const isWarning = charCount < 270 || charCount > 275;
 
+    function freshnessHoursLabel(value) {
+        if (!value || typeof value !== "string") return "1h";
+        const normalized = value.toLowerCase().trim();
+        const match = normalized.match(/(\d+)\s*([smhd])/i);
+        if (!match) return "1h";
+        const amount = Number(match[1]) || 1;
+        const unit = match[2].toLowerCase();
+        if (unit === "s") return "1h";
+        if (unit === "m") return `${Math.max(1, Math.ceil(amount / 60))}h`;
+        if (unit === "h") return `${Math.max(1, amount)}h`;
+        if (unit === "d") return `${Math.max(1, amount * 24)}h`;
+        return "1h";
+    }
+
+    const freshnessLabel = freshnessHoursLabel(sourceAge);
+
     // Highlight hashtags and mentions
     function renderTweetText(text) {
         const parts = text.split(/(#\w+|@\w+)/g);
@@ -61,7 +77,7 @@ export default function TweetCard({ tweet, index, date, isTweeted, onMarkTweeted
                 <div className="flex justify-between items-start mb-4">
                     <div className="flex items-center gap-3">
                         <span className="text-xs font-mono text-slate-400 uppercase tracking-wider bg-slate-800/50 px-2 py-0.5 rounded">
-                            #{index + 1}
+                            {freshnessLabel} • #{index + 1}
                         </span>
                         {/* Freshness Badge */}
                         {sourceAge && sourceAge !== "Fresh" && (

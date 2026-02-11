@@ -89,6 +89,8 @@ const COMMUNITY_RSS_SOURCES = [
     { source: "Devto-AI", url: "https://dev.to/feed/tag/ai", limit: 14 },
     { source: "Reddit-ChatGPT", url: "https://www.reddit.com/r/ChatGPT/.rss", limit: 18 },
     { source: "Reddit-AI", url: "https://www.reddit.com/r/ArtificialInteligence/.rss", limit: 18 },
+    { source: "TechCrunch-AI", url: "https://techcrunch.com/tag/artificial-intelligence/feed/", limit: 12 },
+    { source: "TheVerge-AI", url: "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml", limit: 12 },
     { source: "TowardsDataScience", url: "https://towardsdatascience.com/feed", limit: 12 },
     { source: "AnalyticsVidhya", url: "https://www.analyticsvidhya.com/blog/feed/", limit: 12 },
 ];
@@ -368,6 +370,38 @@ function dedupeByTitleAndUrl(items = []) {
     return unique;
 }
 
+function diversifyBySource(items = []) {
+    const caps = {
+        GitHub: 10,
+        HackerNews: 8,
+        ProductHunt: 10,
+        "TechCrunch-AI": 6,
+        "TheVerge-AI": 6,
+        "Devto-AI": 8,
+        "Medium-AITools": 7,
+        "Medium-GenAI": 7,
+        "Reddit-AI": 7,
+        "Reddit-ChatGPT": 7,
+        TowardsDataScience: 6,
+        AnalyticsVidhya: 6,
+        GoogleNewsFallback: 8,
+    };
+
+    const picked = [];
+    const counts = {};
+
+    for (const item of items) {
+        const source = item.source || "Unknown";
+        const cap = caps[source] || 6;
+        const current = counts[source] || 0;
+        if (current >= cap) continue;
+        picked.push(item);
+        counts[source] = current + 1;
+    }
+
+    return picked;
+}
+
 /**
  * Return 24h AI tool launches/updates focused feed.
  */
@@ -399,7 +433,8 @@ export async function getTrendingNews() {
     }
 
     if (combined.length > 0) {
-        return combined.slice(0, 50);
+        const diversified = diversifyBySource(combined);
+        return diversified.slice(0, 50);
     }
 
     return [
