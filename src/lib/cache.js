@@ -21,33 +21,38 @@ async function ensureCacheDir() {
     }
 }
 
+// Helper to get today's date in YYYY-MM-DD format (ISO)
+// This ensures Date.parse works correctly in all browsers/Node
+function getTodayDate() {
+    return new Date().toLocaleDateString("en-CA", {
+        timeZone: "Asia/Kolkata"
+    }); // en-CA returns YYYY-MM-DD
+}
+
 export async function cacheTweets(tweets) {
     await ensureCacheDir();
-    const today = new Date().toLocaleDateString("en-IN", {
-        timeZone: "Asia/Kolkata"
-    }).replace(/\//g, "-");
+    const today = getTodayDate();
 
-    // Add date property to the cache file itself if needed, or just filename
-    // We store array of tweets.
-    // Let's ensure tweets have 'posted' property initialized if not present
+    // Ensure tweets have 'posted' property initialized
     const initialized = tweets.map(t => ({ ...t, posted: false }));
 
     const filePath = path.join(CACHE_DIR, `${today}.json`);
     await fs.writeFile(filePath, JSON.stringify(initialized, null, 2));
+
+    // Return object resembling the API response
     return { date: today, tweets: initialized };
 }
 
 export async function getCachedTweets(dateStr) {
     await ensureCacheDir();
     // Use provided date or today
-    const targetDate = dateStr || new Date().toLocaleDateString("en-IN", {
-        timeZone: "Asia/Kolkata"
-    }).replace(/\//g, "-");
+    const targetDate = dateStr || getTodayDate();
 
     const filePath = path.join(CACHE_DIR, `${targetDate}.json`);
     try {
         const data = await fs.readFile(filePath, "utf-8");
-        return JSON.parse(data);
+        const tweets = JSON.parse(data);
+        return { date: targetDate, tweets };
     } catch {
         return null;
     }
@@ -57,25 +62,18 @@ export async function getLastDaysTweets(days = 3) {
     await ensureCacheDir();
     try {
         const files = await fs.readdir(CACHE_DIR);
-        const fileStats = await Promise.all(
-            files
-                .filter(f => f.endsWith(".json"))
-                .map(async (file) => {
-                    const filePath = path.join(CACHE_DIR, file);
-                    const stats = await fs.stat(filePath);
-                    return { file, mtime: stats.mtime };
-                })
-        );
-
-        fileStats.sort((a, b) => b.mtime - a.mtime);
-        const recentFiles = fileStats.slice(0, days);
+        // Sort files by name descending (YYYY-MM-DD is sortable)
+        const recentFiles = files
+            .filter(f => f.endsWith(".json"))
+            .sort().reverse()
+            .slice(0, days);
 
         let allTweets = [];
-        for (const { file } of recentFiles) {
+        for (const file of recentFiles) {
             const data = await fs.readFile(path.join(CACHE_DIR, file), "utf-8");
             const tweets = JSON.parse(data);
             if (Array.isArray(tweets)) {
-                allTweets = allTweets.concat(tweets.map(t => t.text));
+                allTweets = allTweets.concat(tweets.map(t => (typeof t === 'string' ? t : t.text)));
             }
         }
         return allTweets;
@@ -87,7 +85,6 @@ export async function getLastDaysTweets(days = 3) {
 
 export async function markTweeted(dateStr, index) {
     await ensureCacheDir();
-    // If no date provided, use today? API guarantees date usually.
     if (!dateStr) return false;
 
     const filePath = path.join(CACHE_DIR, `${dateStr}.json`);
@@ -114,11 +111,7 @@ export async function getAvailableDates() {
         return files
             .filter(f => f.endsWith(".json"))
             .map(f => f.replace(".json", ""))
-            .sort((a, b) => {
-                const [d1, m1, y1] = a.split("-").map(Number);
-                const [d2, m2, y2] = b.split("-").map(Number);
-                return new Date(y2, m2 - 1, d2) - new Date(y1, m1 - 1, d1);
-            });
+            .sort().reverse(); // YYYY-MM-DD sorts reliably
     } catch {
         return [];
     }
