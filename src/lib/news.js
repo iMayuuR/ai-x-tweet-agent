@@ -15,13 +15,13 @@ function getTimeAgo(timestamp) {
 /**
  * Fetch top posts from a subreddit
  */
-async function fetchSubreddit(subreddit, limit = 5) {
+async function fetchSubreddit(subreddit, limit = 15) {
     try {
         const response = await fetch(`https://www.reddit.com/r/${subreddit}/top.json?t=day&limit=${limit}`, {
             headers: {
                 "User-Agent": "Mozilla/5.0 (compatible; AIXTweetAgent/1.0)",
             },
-            next: { revalidate: 3600 }, // Cache for 1 hour
+            next: { revalidate: 600 }, // Cache for 10 minutes
         });
 
         if (!response.ok) {

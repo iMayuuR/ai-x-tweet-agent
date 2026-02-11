@@ -41,9 +41,16 @@ export async function generateTweets() {
     });
 
     // 1. Fetch Trending News (The Source of Truth)
-    const newsItems = await getTrendingNews();
-    const newsContext = newsItems.length > 0
-        ? newsItems.map((n, i) => `${i + 1}. [${n.source} | ${n.timeAgo}] ${n.title}`).join("\n")
+    const allNews = await getTrendingNews();
+
+    // Randomize selection from top 30 to ensure variety on re-generation
+    const shuffledNews = allNews
+        .slice(0, 30)
+        .sort(() => 0.5 - Math.random())
+        .slice(0, 15);
+
+    const newsContext = shuffledNews.length > 0
+        ? shuffledNews.map((n, i) => `${i + 1}. [${n.source} | ${n.timeAgo}] ${n.title}`).join("\n")
         : "No specific news found. Use general knowledge about latest AI tools.";
 
     // 2. Fetch History
