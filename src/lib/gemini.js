@@ -4,6 +4,7 @@ import { getTrendingNews } from "./news";
 
 // Gemini 2.5 Flash
 const MODEL_NAME = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+// AI Tools Explorer Persona Active
 
 const SYSTEM_PROMPT = `You are @AIToolsExplorer — a passionate AI Tools Enthusiast on X (Twitter).
 
