@@ -8,7 +8,7 @@ export default function TweetCard({ tweet, index, date, isTweeted, onMarkTweeted
     const tweetText = typeof tweet === "string" ? tweet : tweet.text;
     const sourceAge = typeof tweet === "object" ? tweet.sourceAge : "";
     const charCount = tweetText.length;
-    const isWarning = charCount > 280; // Updated strictly to 280
+    const isWarning = charCount < 270 || charCount > 275;
 
     // Highlight hashtags and mentions
     function renderTweetText(text) {
@@ -45,12 +45,6 @@ export default function TweetCard({ tweet, index, date, isTweeted, onMarkTweeted
         const url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(tweetText)}`;
         window.open(url, "_blank");
     };
-
-    async function handleMark() {
-        if (!onMarkTweeted) return;
-        onMarkTweeted(date, index);
-        // Optimistic UI update handled by parent usually, but we can animate here
-    }
 
     return (
         <div
@@ -93,7 +87,7 @@ export default function TweetCard({ tweet, index, date, isTweeted, onMarkTweeted
                             </span>
                         )}
                         <span className={`text-xs font-mono ${isWarning ? "text-red-400 font-bold" : "text-slate-500"}`}>
-                            {charCount}/280
+                            {charCount}/270-275
                         </span>
                     </div>
                 </div>
