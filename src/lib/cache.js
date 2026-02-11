@@ -27,18 +27,24 @@ export async function cacheTweets(tweets) {
         timeZone: "Asia/Kolkata"
     }).replace(/\//g, "-");
 
+    // Add date property to the cache file itself if needed, or just filename
+    // We store array of tweets.
+    // Let's ensure tweets have 'posted' property initialized if not present
+    const initialized = tweets.map(t => ({ ...t, posted: false }));
+
     const filePath = path.join(CACHE_DIR, `${today}.json`);
-    await fs.writeFile(filePath, JSON.stringify(tweets, null, 2));
-    return tweets;
+    await fs.writeFile(filePath, JSON.stringify(initialized, null, 2));
+    return { date: today, tweets: initialized };
 }
 
-export async function getCachedTweets() {
+export async function getCachedTweets(dateStr) {
     await ensureCacheDir();
-    const today = new Date().toLocaleDateString("en-IN", {
+    // Use provided date or today
+    const targetDate = dateStr || new Date().toLocaleDateString("en-IN", {
         timeZone: "Asia/Kolkata"
     }).replace(/\//g, "-");
 
-    const filePath = path.join(CACHE_DIR, `${today}.json`);
+    const filePath = path.join(CACHE_DIR, `${targetDate}.json`);
     try {
         const data = await fs.readFile(filePath, "utf-8");
         return JSON.parse(data);
@@ -51,13 +57,14 @@ export async function getLastDaysTweets(days = 3) {
     await ensureCacheDir();
     try {
         const files = await fs.readdir(CACHE_DIR);
-        // Sort files by date (descending) based on mtime
         const fileStats = await Promise.all(
-            files.map(async (file) => {
-                const filePath = path.join(CACHE_DIR, file);
-                const stats = await fs.stat(filePath);
-                return { file, mtime: stats.mtime };
-            })
+            files
+                .filter(f => f.endsWith(".json"))
+                .map(async (file) => {
+                    const filePath = path.join(CACHE_DIR, file);
+                    const stats = await fs.stat(filePath);
+                    return { file, mtime: stats.mtime };
+                })
         );
 
         fileStats.sort((a, b) => b.mtime - a.mtime);
@@ -67,7 +74,9 @@ export async function getLastDaysTweets(days = 3) {
         for (const { file } of recentFiles) {
             const data = await fs.readFile(path.join(CACHE_DIR, file), "utf-8");
             const tweets = JSON.parse(data);
-            allTweets = allTweets.concat(tweets.map(t => t.text));
+            if (Array.isArray(tweets)) {
+                allTweets = allTweets.concat(tweets.map(t => t.text));
+            }
         }
         return allTweets;
     } catch (error) {
@@ -76,29 +85,20 @@ export async function getLastDaysTweets(days = 3) {
     }
 }
 
-export async function markTweeted(tweetText) {
+export async function markTweeted(dateStr, index) {
     await ensureCacheDir();
-    const today = new Date().toLocaleDateString("en-IN", {
-        timeZone: "Asia/Kolkata"
-    }).replace(/\//g, "-");
+    // If no date provided, use today? API guarantees date usually.
+    if (!dateStr) return false;
 
-    const filePath = path.join(CACHE_DIR, `${today}.json`);
+    const filePath = path.join(CACHE_DIR, `${dateStr}.json`);
     try {
         const data = await fs.readFile(filePath, "utf-8");
         const tweets = JSON.parse(data);
 
-        let found = false;
-        const updatedTweets = tweets.map(t => {
-            if (t.text === tweetText) {
-                found = true;
-                return { ...t, posted: true };
-            }
-            return t;
-        });
-
-        if (found) {
-            await fs.writeFile(filePath, JSON.stringify(updatedTweets, null, 2));
-            return true;
+        if (tweets[index]) {
+            tweets[index].posted = !tweets[index].posted; // Toggle status
+            await fs.writeFile(filePath, JSON.stringify(tweets, null, 2));
+            return tweets[index].posted;
         }
         return false;
     } catch (error) {
@@ -117,10 +117,34 @@ export async function getAvailableDates() {
             .sort((a, b) => {
                 const [d1, m1, y1] = a.split("-").map(Number);
                 const [d2, m2, y2] = b.split("-").map(Number);
-                // Compare by Date object (descending)
                 return new Date(y2, m2 - 1, d2) - new Date(y1, m1 - 1, d1);
             });
     } catch {
         return [];
+    }
+}
+
+export async function cleanupOldTweets(keepDays = 30) {
+    await ensureCacheDir();
+    try {
+        const files = await fs.readdir(CACHE_DIR);
+        const now = Date.now();
+        let deletedCount = 0;
+
+        await Promise.all(files.map(async (file) => {
+            if (!file.endsWith(".json")) return;
+            const filePath = path.join(CACHE_DIR, file);
+            const stats = await fs.stat(filePath);
+            const diffDays = (now - stats.mtimeMs) / (1000 * 60 * 60 * 24);
+
+            if (diffDays > keepDays) {
+                await fs.unlink(filePath);
+                deletedCount++;
+            }
+        }));
+        return deletedCount;
+    } catch (error) {
+        console.warn("Cleanup error:", error);
+        return 0;
     }
 }
