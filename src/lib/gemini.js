@@ -82,9 +82,9 @@ Nvidia → @nvidia | Copilot → @MSFTCopilot | GitHub → @GitHubCopilot
 Vercel → @vercel | Gemini → @GoogleAI | Claude → @AnthropicAI
 
 **CRITICAL RULES:**
-1. Each tweet MUST be EXACTLY 250-275 characters. NO EXCEPTIONS. If it is shorter, ADD more relevant hashtags, emojis, or details to reach 270+. If longer than 275, CUT fluff. Max limit is 275 chars.
+1. Each tweet MUST be between 270-280 characters. THIS IS MANDATORY. Fill the space. If the main content is shorter, add more detail, emojis, or hashtags to reach 270+.
 2. ALWAYS tag the official @handle when mentioning a specific tool.
-3. Include 2-5 hashtags per tweet. Use them to fill space if needed.
+3. Include 2-4 hashtags per tweet. Place them naturally or at the end.
 4. Use emojis generously — 🔥 🚨 💎 🧵 👇 ✅ ⚡ 🤖 💡 🎯 🔍 🔖 📌
 5. Focus on TOOLS, not news. Talk about what the tool DOES, not what happened.
 6. Include tool website links when you know them (e.g., cursor.com, perplexity.ai).
@@ -97,7 +97,7 @@ Vercel → @vercel | Gemini → @GoogleAI | Claude → @AnthropicAI
 {
   "tweets": [
     {
-      "text": "Full tweet 250-275 chars with @handles #hashtags emojis and links...",
+      "text": "Full tweet 270-280 chars with @handles #hashtags emojis and links...",
       "sourceAge": "2h"
     }
   ]
@@ -123,7 +123,7 @@ export async function generateTweets() {
     try {
         const allNews = await getTrendingNews();
         if (allNews && allNews.length > 0) {
-            const topNews = allNews.slice(0, 20); // More context for randomness
+            const topNews = allNews.slice(0, 15);
             newsContext = topNews.map((n, i) => `${i + 1}. ${n.title} (${n.source}, ${n.timeAgo}) — ${n.url}`).join("\n");
         } else {
             newsContext = "Focus on popular AI tools: ChatGPT, Claude, Gemini, Midjourney, Cursor, Perplexity, Runway, Suno, ElevenLabs, Stable Diffusion";
@@ -133,13 +133,12 @@ export async function generateTweets() {
         newsContext = "Focus on popular AI tools: ChatGPT, Claude, Gemini, Cursor, Perplexity, Midjourney";
     }
 
-    // 2. Fetch History (Expanded for deduplication)
+    // 2. Fetch History
     let historyPrompt = "";
     try {
-        const previousTweets = await getLastDaysTweets(2); // Last 2 days history
+        const previousTweets = await getLastDaysTweets(1);
         if (previousTweets.length > 0) {
-            // Provide more history to avoid repetition
-            historyPrompt = `\n\nDO NOT repeat these topics/styles (already tweeted recently):\n- ${previousTweets.slice(0, 20).join("\n- ")}`;
+            historyPrompt = `\n\nDO NOT repeat these topics (already tweeted):\n- ${previousTweets.slice(0, 8).join("\n- ")}`;
         }
     } catch (e) { console.error("History fetch failed:", e); }
 
@@ -155,7 +154,7 @@ export async function generateTweets() {
                 contents: [{
                     role: "user",
                     parts: [{
-                        text: `${SYSTEM_PROMPT}\n\nTODAY'S AI TOOL DISCOVERIES (${today}):\n${newsContext}\n${historyPrompt}\n\nNow generate 10 unique tweets as @AIToolsExplorer. Remember: 250-275 chars mandatory. Fill space with relevant tags/emojis if short. DO NOT REPEAT ANY TOOLS FROM HISTORY.`,
+                        text: `${SYSTEM_PROMPT}\n\nTODAY'S AI TOOL DISCOVERIES (${today}):\n${newsContext}\n${historyPrompt}\n\nNow generate 10 tweets as @AIToolsExplorer. Remember: 270-280 chars each, packed with emojis, @handles, #hashtags, and tool links. You are sharing tools you discovered today, NOT reporting news.`,
                     }],
                 }],
                 safetySettings: [
@@ -165,7 +164,7 @@ export async function generateTweets() {
                     { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
                 ],
                 generationConfig: {
-                    temperature: 0.95, // Higher temp for more variety
+                    temperature: 0.9,
                     maxOutputTokens: 4096,
                     thinkingConfig: {
                         thinkingBudget: 0
@@ -189,9 +188,6 @@ export async function generateTweets() {
         // JSON Cleanup
         let jsonStr = content.trim();
         jsonStr = jsonStr.replace(/```json/gi, "").replace(/```/g, "").trim();
-        // Remove comments //
-        jsonStr = jsonStr.replace(/\/\/.*$/gm, "");
-
         const firstBrace = jsonStr.indexOf("{");
         const lastBrace = jsonStr.lastIndexOf("}");
         if (firstBrace !== -1 && lastBrace !== -1) jsonStr = jsonStr.slice(firstBrace, lastBrace + 1);
@@ -214,7 +210,7 @@ export async function generateTweets() {
     } catch (error) {
         console.error("Gemini Error:", error);
         return [
-            { text: "🔥 AI Explorer checking new tools... Hit Generate again! 🤖 #AITools #AI", sourceAge: "System" },
+            { text: "🔥 AI generation hiccup! Hit Generate again — the tools aren't going anywhere 🤖 #AITools #AI", sourceAge: "System" },
         ];
     }
 }
