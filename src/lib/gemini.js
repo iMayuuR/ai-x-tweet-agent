@@ -70,11 +70,15 @@ export async function generateTweets() {
     }
 
     try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 8000); // 8s timeout
+
         const response = await fetch(endpoint, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
             },
+            signal: controller.signal,
             body: JSON.stringify({
                 contents: [
                     {
@@ -99,6 +103,7 @@ export async function generateTweets() {
                 },
             }),
         });
+        clearTimeout(timeoutId);
 
         if (!response.ok) {
             const errorText = await response.text();
