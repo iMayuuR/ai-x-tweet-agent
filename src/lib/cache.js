@@ -106,3 +106,21 @@ export async function markTweeted(tweetText) {
         return false;
     }
 }
+
+export async function getAvailableDates() {
+    await ensureCacheDir();
+    try {
+        const files = await fs.readdir(CACHE_DIR);
+        return files
+            .filter(f => f.endsWith(".json"))
+            .map(f => f.replace(".json", ""))
+            .sort((a, b) => {
+                const [d1, m1, y1] = a.split("-").map(Number);
+                const [d2, m2, y2] = b.split("-").map(Number);
+                // Compare by Date object (descending)
+                return new Date(y2, m2 - 1, d2) - new Date(y1, m1 - 1, d1);
+            });
+    } catch {
+        return [];
+    }
+}
