@@ -3,6 +3,7 @@ import { generateTweets } from "@/lib/gemini";
 import { cacheTweets, cleanupOldTweets } from "@/lib/cache";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 /**
  * GET /api/cron

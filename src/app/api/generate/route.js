@@ -3,6 +3,7 @@ import { generateTweets } from "@/lib/gemini";
 import { cacheTweets } from "@/lib/cache";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60; // Extend Vercel timeout for Gemini 2.5 Flash thinking model
 
 /**
  * POST /api/generate

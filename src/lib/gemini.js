@@ -73,9 +73,9 @@ export async function generateTweets() {
     } catch (e) { console.error("History fetch failed:", e); }
 
     try {
-        // Vercel Limit 10s. Set 9s timeout.
+        // Vercel maxDuration set to 60s. Use 55s safety timeout.
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 9000);
+        const timeoutId = setTimeout(() => controller.abort(), 55000);
 
         const response = await fetch(endpoint, {
             method: "POST",
@@ -97,6 +97,10 @@ export async function generateTweets() {
                 generationConfig: {
                     temperature: 0.8,
                     maxOutputTokens: 512,
+                    // Disable "thinking" phase for 2.5 Flash — this is what causes timeouts
+                    thinkingConfig: {
+                        thinkingBudget: 0
+                    }
                 },
             }),
         });
