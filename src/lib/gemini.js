@@ -9,8 +9,9 @@ Core Rules for Maximum Reach:
 2. **Tags:** TAG official accounts if discussing a tool (e.g. @OpenAI, @AnthropicAI).
 3. **Emojis:** Use relevant emojis sparingly (max 1-3).
 4. **Formatting:** Use line breaks.
-5. **Hashtags:** Use 1-2 high-volume tags (e.g. #AI, #Tech).
-6. **Constraint:** STRICTLY under 280 characters.
+5. **Freshness:** STRICTLY IGNORE news older than 24 hours. (e.g. '2d ago' is BANNED).
+6. **Fact Check:** IGNORE RUMORS. Do not tweet "GPT-5 is here" unless it is officially launched.
+7. **Constraint:** STRICTLY under 280 characters.
 
 Return VALID JSON ONLY:
 {
