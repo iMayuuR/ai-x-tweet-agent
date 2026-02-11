@@ -5,8 +5,6 @@ import { headers } from "next/headers";
  * Calculate relative time string
  */
 function getTimeAgo(timestamp) {
-    // timestamp is in seconds (Unix) or milliseconds (Date)
-    // If timestamp > 20000000000, it's ms. Else seconds.
     const now = Date.now();
     const time = timestamp > 20000000000 ? timestamp : timestamp * 1000;
     const seconds = Math.floor((now - time) / 1000);
@@ -19,7 +17,7 @@ function getTimeAgo(timestamp) {
 }
 
 /**
- * Fetch top stories from Hacker News (Show HN)
+ * Fetch top stories from Hacker News (Show HN — new tool launches)
  */
 async function fetchHackerNews(limit = 15) {
     try {
@@ -42,7 +40,7 @@ async function fetchHackerNews(limit = 15) {
                 url: item.url || `https://news.ycombinator.com/item?id=${item.id}`,
                 score: item.score,
                 source: "HackerNews",
-                timeAgo: getTimeAgo(item.time), // HN uses seconds
+                timeAgo: getTimeAgo(item.time),
                 timestamp: item.time,
             }));
     } catch (e) {
@@ -52,22 +50,19 @@ async function fetchHackerNews(limit = 15) {
 }
 
 /**
- * Fetch Google News RSS (AI Tools / Latest 24h)
- * Replaces Reddit (Blocked)
+ * Fetch Google News RSS — Focused on AI TOOL LAUNCHES & UPDATES
  */
-async function fetchGoogleNews() {
+async function fetchGoogleNews(query, label) {
     try {
-        // "AI Tools" query, last 1 day (when:1d)
-        const url = "https://news.google.com/rss/search?q=AI+Tools+when:1d&hl=en-US&gl=US&ceid=US:en";
+        const url = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}+when:1d&hl=en-US&gl=US&ceid=US:en`;
         const response = await fetch(url, { next: { revalidate: 3600 } });
 
         if (!response.ok) return [];
 
         const text = await response.text();
-        // Parse XML with Regex (Simple & Fast)
         const items = text.match(/<item>[\s\S]*?<\/item>/g) || [];
 
-        return items.slice(0, 30).map(item => {
+        return items.slice(0, 15).map(item => {
             const titleMatch = item.match(/<title>(.*?)<\/title>/);
             const linkMatch = item.match(/<link>(.*?)<\/link>/);
             const dateMatch = item.match(/<pubDate>(.*?)<\/pubDate>/);
@@ -79,41 +74,41 @@ async function fetchGoogleNews() {
             return {
                 title: title.replace("<![CDATA[", "").replace("]]>", ""),
                 url: link,
-                score: 100, // Boost Google News
-                source: "Google News",
+                score: 100,
+                source: label,
                 timeAgo: getTimeAgo(pubDate),
                 timestamp: Math.floor(pubDate / 1000)
             };
         });
 
     } catch (error) {
-        console.error("Google News Error:", error);
+        console.error(`Google News (${label}) Error:`, error);
         return [];
     }
 }
 
 /**
- * Fetch trending AI news from multiple sources
+ * Fetch trending AI TOOL launches & updates from multiple focused queries
  */
 export async function getTrendingNews() {
-    // 1. Fetch Google News & HN in parallel
-    const [googleNews, hnNews] = await Promise.all([
-        fetchGoogleNews(),
+    // Multiple focused queries for AI TOOLS specifically (not generic news)
+    const [toolLaunches, aiApps, aiUpdates, hnNews] = await Promise.all([
+        fetchGoogleNews("new AI tool launched OR released", "AI Tool Launch"),
+        fetchGoogleNews("AI app OR AI product OR AI startup", "AI App"),
+        fetchGoogleNews("AI tool update OR AI feature OR ChatGPT OR Claude OR Gemini OR Midjourney", "AI Update"),
         fetchHackerNews(15)
     ]);
 
-    const allNews = [...googleNews, ...hnNews];
-    const now = Date.now() / 1000; // seconds
+    const allNews = [...toolLaunches, ...aiApps, ...aiUpdates, ...hnNews];
+    const now = Date.now() / 1000;
 
-    // Strict 24h Filter (86400 seconds)
-    // Filter out posts older than 24 hours
+    // Strict 24h Filter
     const freshNews = allNews.filter(n => (now - n.timestamp) < 86400);
 
-    // Sort by timestamp (Freshness first) for Google News, Score for HN
-    // We prioritize Google News as it's specifically "AI Tools"
+    // Sort by freshness
     freshNews.sort((a, b) => b.timestamp - a.timestamp);
 
-    // Deduplicate by title
+    // Deduplicate
     const uniqueNews = [];
     const seenTitles = new Set();
 
@@ -125,5 +120,5 @@ export async function getTrendingNews() {
         }
     }
 
-    return uniqueNews.slice(0, 40);
+    return uniqueNews.slice(0, 50);
 }
