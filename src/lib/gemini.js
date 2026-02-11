@@ -1,163 +1,316 @@
-
 import { getLastDaysTweets } from "./cache";
 import { getTrendingNews } from "./news";
 
-// Gemini 2.5 Flash
 const MODEL_NAME = process.env.GEMINI_MODEL || "gemini-2.5-flash";
-// AI Tools Explorer Persona Active
 
-const SYSTEM_PROMPT = `You are @AIToolsExplorer — a passionate AI Tools Enthusiast on X (Twitter).
+const TARGET_TWEETS = 10;
+const MIN_TWEET_LENGTH = 270;
+const MAX_TWEET_LENGTH = 275;
+const MAX_MODEL_ATTEMPTS = 3;
+const HISTORY_TWEET_LIMIT = 20;
+const DUPLICATE_JACCARD_THRESHOLD = 0.62;
 
-**WHO YOU ARE:**
-You live and breathe AI tools. Every day you scour the internet for the latest AI tools launched, updated, or trending in the last 24 hours. You test them, find hidden gems, and share your discoveries with your followers. You're NOT a news reporter — you're a TOOL HUNTER who shares what excites you.
+const TOOL_FALLBACK_CONTEXT = [
+    "chatgpt.com",
+    "claude.ai",
+    "gemini.google.com",
+    "cursor.com",
+    "perplexity.ai",
+    "runwayml.com",
+    "midjourney.com",
+    "suno.com",
+    "elevenlabs.io",
+    "huggingface.co",
+].join(", ");
 
-**YOUR PERSONA:**
-- AI Enthusiast & Tools Explorer
-- You try out every new AI tool the day it drops
-- You share what you found, why it's cool, and who should use it
-- You include the tool's website link when available
-- You're excited, genuine, and helpful — not corporate or boring
+const NEWSY_PATTERNS = [
+    /\bbreaking\b/i,
+    /\bheadline\b/i,
+    /\breported?\b/i,
+    /\baccording to\b/i,
+    /\bnews\b/i,
+    /\bpress release\b/i,
+];
 
-**TWEET STYLE (STUDY THESE PATTERNS):**
+const SYSTEM_PROMPT = `You are @AIToolsExplorer on X.
 
-Style 1 — Tool Discovery:
-"🔥 Just discovered [ToolName] and I'm blown away!
+Persona:
+- AI enthusiast and AI tools explorer.
+- You scan launches and updates from the last 24 hours.
+- You share practical tool discoveries, not generic AI news.
 
-It lets you [specific thing it does] — completely free.
+Voice:
+- Excited, useful, and hands-on.
+- Use strong emojis naturally.
+- Write as a real creator who tests tools.
 
-If you're into [use case], this is a must-try 👇
-[link]
+Hard rules:
+1) Return exactly ${TARGET_TWEETS} tweets in JSON.
+2) Every tweet must be between ${MIN_TWEET_LENGTH}-${MAX_TWEET_LENGTH} characters.
+3) Topic must be AI tools only. No market/news narration.
+4) Do not use framing like: breaking, headline, reported, according to, news.
+5) Explain what the tool does, who should use it, and one concrete use case.
+6) Include the tool link when known.
+7) Tag official handles when tool/company is mentioned.
+8) Hashtags are optional. Use 0 or 1 hashtag max. Never use hashtags as length filler.
+9) If tweet is short, add useful detail, insight, or use-case depth instead of extra hashtags.
+10) Start each tweet differently. Avoid repeated openings.
 
-@handle #AITools #AI"
+Official handle map:
+OpenAI=@OpenAI, Google/Gemini=@GoogleAI, Anthropic/Claude=@AnthropicAI, Meta AI=@MetaAI,
+Stability AI=@StabilityAI, Midjourney=@midjourney, Runway=@runwayml, Hugging Face=@huggingface,
+Perplexity=@perplexity_ai, Cursor=@cursor_ai, Replit=@Replit, Notion=@NotionHQ, Canva=@canva,
+Adobe Firefly=@AdobeFirefly, Mistral=@MistralAI, xAI=@xai, Suno=@suno_ai_, ElevenLabs=@elevenlabsio,
+NVIDIA=@nvidia, GitHub Copilot=@GitHubCopilot, Vercel=@vercel.
 
-Style 2 — Quick Review:
-"Tried [ToolName] today and here's my honest take 🧵
-
-✅ [Pro 1]
-✅ [Pro 2]  
-⚠️ [Con or limitation]
-
-Overall: [verdict] — worth checking out for [audience]
-@handle #AI #Productivity"
-
-Style 3 — Tool Update:
-"🚨 @handle just dropped a HUGE update!
-
-What's new:
-→ [Feature 1]
-→ [Feature 2]
-
-This changes everything for [who benefits].
-Try it: [link]
-
-#AITools #GenerativeAI"
-
-Style 4 — Comparison:
-"I've tested both [Tool A] and [Tool B] extensively 🔍
-
-[Tool A]: Best for [use case]
-[Tool B]: Better at [use case]
-
-My pick? [Winner] — here's why: [reason]
-
-#AI #AITools #Tech"
-
-Style 5 — Hidden Gem:
-"💎 Underrated AI tool alert!
-
-[ToolName] — most people haven't heard of this yet.
-
-It can [amazing capability] and it's [free/cheap].
-
-Bookmark this before everyone finds out 🔖
-@handle #AITools"
-
-**OFFICIAL X HANDLES (ALWAYS TAG WHEN MENTIONING):**
-OpenAI → @OpenAI | Google → @GoogleAI | Anthropic → @AnthropicAI
-Meta AI → @MetaAI | Stability AI → @StabilityAI | Midjourney → @midjourney
-Runway → @runwayml | Hugging Face → @huggingface | Perplexity → @perplexity_ai
-Cursor → @cursor_ai | Replit → @Replit | Notion → @NotionHQ
-Canva → @canva | Adobe → @AdobeFirefly | Mistral → @MistralAI
-xAI/Grok → @xai | Suno → @saborunoabormusic | ElevenLabs → @elevenlabsio
-Nvidia → @nvidia | Copilot → @MSFTCopilot | GitHub → @GitHubCopilot
-Vercel → @vercel | Gemini → @GoogleAI | Claude → @AnthropicAI
-
-**CRITICAL RULES:**
-1. Each tweet MUST be between 270-280 characters. THIS IS MANDATORY. Fill the space. If the main content is shorter, add more detail, emojis, or hashtags to reach 270+.
-2. ALWAYS tag the official @handle when mentioning a specific tool.
-3. Include 2-4 hashtags per tweet. Place them naturally or at the end.
-4. Use emojis generously — 🔥 🚨 💎 🧵 👇 ✅ ⚡ 🤖 💡 🎯 🔍 🔖 📌
-5. Focus on TOOLS, not news. Talk about what the tool DOES, not what happened.
-6. Include tool website links when you know them (e.g., cursor.com, perplexity.ai).
-7. Sound genuinely excited like a real person discovering something cool.
-8. Each tweet must be about a DIFFERENT tool or topic.
-9. Mix all 5 tweet styles across the 10 tweets.
-10. Do NOT start multiple tweets with the same emoji or phrase.
-
-**OUTPUT FORMAT (STRICTLY JSON, NO MARKDOWN):**
+Output format:
 {
   "tweets": [
-    {
-      "text": "Full tweet 270-280 chars with @handles #hashtags emojis and links...",
-      "sourceAge": "2h"
-    }
+    { "text": "tweet text", "sourceAge": "2h" }
   ]
 }
 
-Generate exactly 10 tweets.`;
+Return JSON only, no markdown.`;
 
-export async function generateTweets() {
-    const apiKey = process.env.GEMINI_API_KEY;
-
-    if (!apiKey) {
-        throw new Error("Missing required environment variable: GEMINI_API_KEY");
+function buildToolSignalContext(items = []) {
+    if (!items.length) {
+        return `No strong live tool signals found. Use fresh and practical AI tools from: ${TOOL_FALLBACK_CONTEXT}.`;
     }
 
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${apiKey}`;
+    return items
+        .slice(0, 15)
+        .map((item, index) => {
+            const title = item?.title || "Untitled tool signal";
+            const source = item?.source || "Unknown";
+            const timeAgo = item?.timeAgo || "fresh";
+            const url = item?.url || "";
 
-    const today = new Date().toLocaleDateString("en-US", {
-        weekday: "long", year: "numeric", month: "long", day: "numeric"
+            return `${index + 1}. Tool signal: ${title} | Source: ${source} | Freshness: ${timeAgo}${url ? ` | Link: ${url}` : ""}`;
+        })
+        .join("\n");
+}
+
+function dedupeTexts(items = []) {
+    const unique = [];
+    const seen = new Set();
+
+    items.forEach((item) => {
+        const value = typeof item === "string" ? item.trim() : "";
+        if (!value) return;
+        const key = value.toLowerCase();
+        if (!seen.has(key)) {
+            seen.add(key);
+            unique.push(value);
+        }
     });
 
-    // 1. Fetch AI Tool Launches & Updates
-    let newsContext = "";
+    return unique;
+}
+
+function buildHistoryPrompt(previousTweets = [], limit = HISTORY_TWEET_LIMIT) {
+    if (!previousTweets.length) return "";
+    const recent = dedupeTexts(previousTweets).slice(0, limit);
+    if (!recent.length) return "";
+    return `\n\nAvoid repeating these previous tweets/topics:\n- ${recent.join("\n- ")}`;
+}
+
+function extractJsonObject(rawText) {
+    let jsonStr = rawText.trim().replace(/```json/gi, "").replace(/```/g, "").trim();
+    const firstBrace = jsonStr.indexOf("{");
+    const lastBrace = jsonStr.lastIndexOf("}");
+    if (firstBrace !== -1 && lastBrace !== -1) {
+        jsonStr = jsonStr.slice(firstBrace, lastBrace + 1);
+    }
+    return jsonStr;
+}
+
+function parseTweetsFromContent(content) {
+    const jsonStr = extractJsonObject(content);
+    let parsed;
     try {
-        const allNews = await getTrendingNews();
-        if (allNews && allNews.length > 0) {
-            const topNews = allNews.slice(0, 15);
-            newsContext = topNews.map((n, i) => `${i + 1}. ${n.title} (${n.source}, ${n.timeAgo}) — ${n.url}`).join("\n");
-        } else {
-            newsContext = "Focus on popular AI tools: ChatGPT, Claude, Gemini, Midjourney, Cursor, Perplexity, Runway, Suno, ElevenLabs, Stable Diffusion";
-        }
-    } catch (e) {
-        console.error("News fetch failed:", e);
-        newsContext = "Focus on popular AI tools: ChatGPT, Claude, Gemini, Cursor, Perplexity, Midjourney";
+        parsed = JSON.parse(jsonStr);
+    } catch {
+        const fixed = jsonStr.replace(/,\s*}/g, "}").replace(/,\s*]/g, "]");
+        parsed = JSON.parse(fixed);
     }
 
-    // 2. Fetch History
-    let historyPrompt = "";
-    try {
-        const previousTweets = await getLastDaysTweets(1);
-        if (previousTweets.length > 0) {
-            historyPrompt = `\n\nDO NOT repeat these topics (already tweeted):\n- ${previousTweets.slice(0, 8).join("\n- ")}`;
+    if (!parsed?.tweets || !Array.isArray(parsed.tweets)) {
+        throw new Error("Missing 'tweets' array in Gemini response");
+    }
+
+    return parsed.tweets;
+}
+
+function countHashtags(text) {
+    const tags = text.match(/#[a-z0-9_]+/gi);
+    return tags ? tags.length : 0;
+}
+
+function isNewsy(text) {
+    return NEWSY_PATTERNS.some((pattern) => pattern.test(text));
+}
+
+function normalizeSimilarityText(text) {
+    return (text || "")
+        .toLowerCase()
+        .replace(/https?:\/\/\S+/g, " ")
+        .replace(/www\.\S+/g, " ")
+        .replace(/[@#]\w+/g, " ")
+        .replace(/[^a-z0-9\s]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
+function toTokenSet(text) {
+    return new Set(
+        normalizeSimilarityText(text)
+            .split(" ")
+            .filter((token) => token.length > 2)
+    );
+}
+
+function jaccard(setA, setB) {
+    if (!setA.size || !setB.size) return 0;
+    let intersection = 0;
+
+    for (const token of setA) {
+        if (setB.has(token)) intersection += 1;
+    }
+
+    const union = new Set([...setA, ...setB]).size;
+    return union ? intersection / union : 0;
+}
+
+function isNearDuplicate(textA, textB) {
+    const normalizedA = normalizeSimilarityText(textA);
+    const normalizedB = normalizeSimilarityText(textB);
+
+    if (!normalizedA || !normalizedB) return false;
+    if (normalizedA === normalizedB) return true;
+
+    if (
+        normalizedA.length > 120 &&
+        normalizedB.length > 120 &&
+        (normalizedA.includes(normalizedB.slice(0, 120)) ||
+            normalizedB.includes(normalizedA.slice(0, 120)))
+    ) {
+        return true;
+    }
+
+    const score = jaccard(toTokenSet(normalizedA), toTokenSet(normalizedB));
+    return score >= DUPLICATE_JACCARD_THRESHOLD;
+}
+
+function validateTweetText(text) {
+    const value = typeof text === "string" ? text.trim() : "";
+    const issues = [];
+
+    if (!value) {
+        issues.push("empty text");
+        return issues;
+    }
+
+    const length = value.length;
+    if (length < MIN_TWEET_LENGTH) issues.push(`too short (${length})`);
+    if (length > MAX_TWEET_LENGTH) issues.push(`too long (${length})`);
+    if (isNewsy(value)) issues.push("newsy framing");
+    if (countHashtags(value) > 1) issues.push("more than one hashtag");
+
+    return issues;
+}
+
+function normalizeTweets(rawTweets = []) {
+    return rawTweets.slice(0, TARGET_TWEETS).map((tweet) => {
+        if (typeof tweet === "string") {
+            return { text: tweet.trim(), sourceAge: "Fresh" };
         }
-    } catch (e) { console.error("History fetch failed:", e); }
+
+        return {
+            text: (tweet?.text || "").trim(),
+            sourceAge: tweet?.sourceAge || "Fresh",
+        };
+    });
+}
+
+function collectIssues(tweets = [], blockedTweets = []) {
+    const issues = [];
+
+    if (tweets.length !== TARGET_TWEETS) {
+        issues.push(`returned ${tweets.length} tweets; expected ${TARGET_TWEETS}`);
+    }
+
+    tweets.forEach((tweet, index) => {
+        const tweetIssues = validateTweetText(tweet.text);
+        if (tweetIssues.length) {
+            issues.push(
+                `tweet ${index + 1}: ${tweetIssues.join(", ")} | "${tweet.text.slice(0, 120)}"`
+            );
+        }
+    });
+
+    for (let i = 0; i < tweets.length; i += 1) {
+        for (let j = i + 1; j < tweets.length; j += 1) {
+            if (isNearDuplicate(tweets[i].text, tweets[j].text)) {
+                issues.push(`tweet ${i + 1} and tweet ${j + 1}: repetitive/too similar`);
+            }
+        }
+    }
+
+    tweets.forEach((tweet, index) => {
+        const repeated = blockedTweets.find((previous) => isNearDuplicate(tweet.text, previous));
+        if (repeated) {
+            issues.push(
+                `tweet ${index + 1}: repeats previous generated content | "${tweet.text.slice(0, 120)}"`
+            );
+        }
+    });
+
+    return issues;
+}
+
+async function requestTweets({
+    endpoint,
+    today,
+    toolSignalContext,
+    historyPrompt,
+    retryFeedback,
+}) {
+    const prompt = [
+        SYSTEM_PROMPT,
+        "",
+        `DATE: ${today}`,
+        "",
+        "LAST 24H TOOL SIGNALS (context only; do not write news):",
+        toolSignalContext,
+        historyPrompt,
+        "",
+        "Task:",
+        `Generate ${TARGET_TWEETS} tweets for @AIToolsExplorer.`,
+        `Each tweet must be ${MIN_TWEET_LENGTH}-${MAX_TWEET_LENGTH} chars.`,
+        "Tweets must focus on AI tools and practical usage, not news narration.",
+        "Include energetic emojis and tool links where possible.",
+        retryFeedback ? `Retry fixes from previous attempt:\n${retryFeedback}` : "",
+        "",
+        "Return JSON only.",
+    ]
+        .filter(Boolean)
+        .join("\n");
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 55000);
 
     try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 55000);
-
         const response = await fetch(endpoint, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             signal: controller.signal,
             body: JSON.stringify({
-                contents: [{
-                    role: "user",
-                    parts: [{
-                        text: `${SYSTEM_PROMPT}\n\nTODAY'S AI TOOL DISCOVERIES (${today}):\n${newsContext}\n${historyPrompt}\n\nNow generate 10 tweets as @AIToolsExplorer. Remember: 270-280 chars each, packed with emojis, @handles, #hashtags, and tool links. You are sharing tools you discovered today, NOT reporting news.`,
-                    }],
-                }],
+                contents: [
+                    {
+                        role: "user",
+                        parts: [{ text: prompt }],
+                    },
+                ],
                 safetySettings: [
                     { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
                     { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
@@ -168,50 +321,104 @@ export async function generateTweets() {
                     temperature: 0.9,
                     maxOutputTokens: 4096,
                     thinkingConfig: {
-                        thinkingBudget: 0
-                    }
+                        thinkingBudget: 0,
+                    },
                 },
             }),
         });
-        clearTimeout(timeoutId);
 
         if (!response.ok) {
             const errorText = await response.text();
-            console.error(`Gemini API Error: ${response.status} - ${errorText}`);
-            throw new Error(`Gemini API error (${response.status})`);
+            throw new Error(`Gemini API error (${response.status}): ${errorText}`);
         }
 
         const data = await response.json();
-        const content = data.candidates?.[0]?.content?.parts?.map((p) => p.text).filter(Boolean).join("");
+        const content = data?.candidates?.[0]?.content?.parts
+            ?.map((part) => part.text)
+            .filter(Boolean)
+            .join("");
 
-        if (!content) throw new Error("No content in Gemini response");
-
-        // JSON Cleanup
-        let jsonStr = content.trim();
-        jsonStr = jsonStr.replace(/```json/gi, "").replace(/```/g, "").trim();
-        const firstBrace = jsonStr.indexOf("{");
-        const lastBrace = jsonStr.lastIndexOf("}");
-        if (firstBrace !== -1 && lastBrace !== -1) jsonStr = jsonStr.slice(firstBrace, lastBrace + 1);
-
-        let parsed;
-        try {
-            parsed = JSON.parse(jsonStr);
-        } catch (e) {
-            const fixed = jsonStr.replace(/,\s*}/g, "}").replace(/,\s*]/g, "]");
-            parsed = JSON.parse(fixed);
+        if (!content) {
+            throw new Error("No content in Gemini response");
         }
 
-        if (!parsed.tweets || !Array.isArray(parsed.tweets)) throw new Error("Missing 'tweets' array");
-
-        return parsed.tweets.slice(0, 10).map((t) => ({
-            text: t.text || t,
-            sourceAge: t.sourceAge || "Fresh"
-        }));
-
-    } catch (error) {
-        console.error("Gemini Error:", error);
-        return [
-            { text: "🔥 AI generation hiccup! Hit Generate again — the tools aren't going anywhere 🤖 #AITools #AI", sourceAge: "System" },
-        ];
+        return parseTweetsFromContent(content);
+    } finally {
+        clearTimeout(timeoutId);
     }
+}
+
+export async function generateTweets(options = {}) {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+        throw new Error("Missing required environment variable: GEMINI_API_KEY");
+    }
+
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${apiKey}`;
+    const today = new Date().toLocaleDateString("en-US", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+    });
+
+    let toolSignalContext = `Fallback AI tool pool: ${TOOL_FALLBACK_CONTEXT}.`;
+    try {
+        const signals = await getTrendingNews();
+        toolSignalContext = buildToolSignalContext(signals);
+    } catch (error) {
+        console.error("Tool signal fetch failed:", error);
+    }
+
+    const avoidTweets = dedupeTexts(Array.isArray(options?.avoidTweets) ? options.avoidTweets : []);
+    let historyPrompt = "";
+    let blockedTweets = [...avoidTweets];
+    try {
+        const previousTweets = await getLastDaysTweets(2);
+        blockedTweets = dedupeTexts([...avoidTweets, ...previousTweets]);
+        historyPrompt = buildHistoryPrompt(blockedTweets, HISTORY_TWEET_LIMIT);
+    } catch (error) {
+        console.error("History fetch failed:", error);
+        historyPrompt = buildHistoryPrompt(avoidTweets, HISTORY_TWEET_LIMIT);
+    }
+
+    let retryFeedback = "";
+    let lastCandidate = [];
+
+    for (let attempt = 1; attempt <= MAX_MODEL_ATTEMPTS; attempt += 1) {
+        try {
+            const rawTweets = await requestTweets({
+                endpoint,
+                today,
+                toolSignalContext,
+                historyPrompt,
+                retryFeedback,
+            });
+
+            const candidateTweets = normalizeTweets(rawTweets);
+            lastCandidate = candidateTweets;
+            const issues = collectIssues(candidateTweets, blockedTweets);
+
+            if (!issues.length) {
+                return candidateTweets;
+            }
+
+            retryFeedback = issues.join("\n");
+            console.warn(`[Gemini validation] attempt ${attempt} failed:\n${retryFeedback}`);
+        } catch (error) {
+            retryFeedback = `Attempt ${attempt} failed: ${error.message}`;
+            console.error("Gemini attempt error:", error);
+        }
+    }
+
+    if (lastCandidate.length) {
+        return lastCandidate;
+    }
+
+    return [
+        {
+            text: "AI generation hiccup right now. Retry once and fresh AI tools picks will load.",
+            sourceAge: "System",
+        },
+    ];
 }

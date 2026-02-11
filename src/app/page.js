@@ -45,8 +45,13 @@ export default function Home() {
       }
 
       if (json.data && json.data.tweets) {
-        setTweets(json.data.tweets);
-        setTweetedStatus(json.data.tweetedStatus || []);
+        const tweetItems = json.data.tweets;
+        setTweets(tweetItems);
+        setTweetedStatus(
+          Array.isArray(tweetItems)
+            ? tweetItems.map((t) => Boolean(typeof t === "object" && t?.posted))
+            : []
+        );
         setDate(json.data.date);
         setGeneratedAt(json.data.generatedAt);
         setIsEmpty(false);
@@ -81,10 +86,14 @@ export default function Home() {
     setGenerating(true);
     setError(null);
     try {
+      const avoidTweets = tweets
+        .map((t) => (typeof t === "string" ? t : t?.text))
+        .filter(Boolean);
+
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ secret: "client" }),
+        body: JSON.stringify({ secret: "client", avoidTweets }),
       });
       const json = await res.json();
 
@@ -92,8 +101,13 @@ export default function Home() {
         throw new Error(json.error || "Failed to generate tweets");
       }
 
-      setTweets(json.data.tweets);
-      setTweetedStatus(json.data.tweetedStatus || []);
+      const tweetItems = json.data.tweets;
+      setTweets(tweetItems);
+      setTweetedStatus(
+        Array.isArray(tweetItems)
+          ? tweetItems.map((t) => Boolean(typeof t === "object" && t?.posted))
+          : []
+      );
       setDate(json.data.date);
       setGeneratedAt(json.data.generatedAt);
       setIsEmpty(false);
@@ -112,8 +126,50 @@ export default function Home() {
     fetchHistoryDates();
   }, []);
 
-  function handleMarkTweeted(newStatus) {
-    setTweetedStatus(newStatus);
+  async function handleMarkTweeted(targetDate, index) {
+    if (!targetDate || typeof index !== "number") return;
+
+    const previous = tweetedStatus[index] || false;
+    const next = !previous;
+
+    setTweetedStatus((prev) => prev.map((value, i) => (i === index ? next : value)));
+    setTweets((prev) =>
+      prev.map((tweet, i) => {
+        if (i !== index || typeof tweet !== "object" || !tweet) return tweet;
+        return { ...tweet, posted: next };
+      })
+    );
+
+    try {
+      const res = await fetch("/api/mark", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date: targetDate, index }),
+      });
+      const json = await res.json();
+
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || "Failed to mark tweet");
+      }
+
+      const serverStatus = Boolean(json.tweetedStatus);
+      setTweetedStatus((prev) => prev.map((value, i) => (i === index ? serverStatus : value)));
+      setTweets((prev) =>
+        prev.map((tweet, i) => {
+          if (i !== index || typeof tweet !== "object" || !tweet) return tweet;
+          return { ...tweet, posted: serverStatus };
+        })
+      );
+    } catch (err) {
+      setTweetedStatus((prev) => prev.map((value, i) => (i === index ? previous : value)));
+      setTweets((prev) =>
+        prev.map((tweet, i) => {
+          if (i !== index || typeof tweet !== "object" || !tweet) return tweet;
+          return { ...tweet, posted: previous };
+        })
+      );
+      setError(err.message);
+    }
   }
 
   const tweetedCount = tweetedStatus.filter(Boolean).length;
@@ -154,7 +210,7 @@ export default function Home() {
               </svg>
             </div>
             <h2 className="empty-title">No tweets yet</h2>
-            <p className="empty-subtitle">Click below to generate 10 fresh AI tweets based on today&apos;s latest news</p>
+            <p className="empty-subtitle">Click below to generate 10 fresh AI tools tweets based on today&apos;s launches and updates</p>
             <button className="btn btn-generate" onClick={handleGenerate}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
@@ -170,7 +226,7 @@ export default function Home() {
             <div className="loading-spinner" />
             <div>
               <p className="loading-text">Generating today&apos;s AI tweets...</p>
-              <p className="loading-subtext">Searching latest AI news with Gemini</p>
+              <p className="loading-subtext">Scanning latest AI tool launches and updates with Gemini</p>
             </div>
             <div className="tweets-grid" style={{ width: "100%", marginTop: "16px" }}>
               {[...Array(3)].map((_, i) => (

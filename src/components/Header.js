@@ -1,20 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useMemo } from "react";
 
 export default function Header({ date, onLogout, historyDates = [], onDateSelect, selectedDate }) {
-    const [formattedDate, setFormattedDate] = useState("");
-
-    useEffect(() => {
+    const formattedDate = useMemo(() => {
         const d = date ? new Date(date + "T00:00:00") : new Date();
-        setFormattedDate(
-            d.toLocaleDateString("en-US", {
-                weekday: "long",
-                year: "numeric",
-                month: "long",
-                day: "numeric",
-            })
-        );
+        return d.toLocaleDateString("en-US", {
+            weekday: "long",
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+        });
     }, [date]);
 
     return (
@@ -27,14 +23,24 @@ export default function Header({ date, onLogout, historyDates = [], onDateSelect
                             value={selectedDate || ""}
                             onChange={(e) => onDateSelect(e.target.value || null)}
                         >
-                            <option value="">📅 Today's Tweets</option>
+                            <option value="">Today&apos;s Tweets</option>
                             {historyDates.map((d) => (
                                 <option key={d} value={d}>
-                                    🕒 {d}
+                                    {d}
                                 </option>
                             ))}
                         </select>
-                        <svg className="select-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
+                        <svg
+                            className="select-icon"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                        >
+                            <polyline points="6 9 12 15 18 9" />
+                        </svg>
                     </div>
                 )}
 

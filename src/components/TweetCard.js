@@ -55,8 +55,8 @@ export default function TweetCard({ tweet, index, date, isTweeted, onMarkTweeted
     return (
         <div
             className={`flex flex-col bg-[#1e293b] rounded-xl overflow-hidden border transition-all duration-300 ${isTweeted
-                    ? "border-green-500/30 opacity-75 grayscale-[0.5]"
-                    : "border-[#334155] hover:border-blue-500/50 hover:shadow-lg hover:shadow-blue-500/10"
+                ? "border-green-500/30 opacity-75 grayscale-[0.5]"
+                : "border-[#334155] hover:border-blue-500/50 hover:shadow-lg hover:shadow-blue-500/10"
                 }`}
         >
             {/* Minimal Header */}
@@ -73,8 +73,8 @@ export default function TweetCard({ tweet, index, date, isTweeted, onMarkTweeted
                         {sourceAge && sourceAge !== "Fresh" && (
                             <div className="group relative flex items-center cursor-help">
                                 <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded border flex items-center gap-1 ${sourceAge.includes("d")
-                                        ? "bg-orange-500/10 text-orange-400 border-orange-500/20"
-                                        : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                                    ? "bg-orange-500/10 text-orange-400 border-orange-500/20"
+                                    : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
                                     }`}>
                                     <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse"></span>
                                     {sourceAge}
@@ -134,10 +134,10 @@ export default function TweetCard({ tweet, index, date, isTweeted, onMarkTweeted
                     </div>
 
                     <button
-                        onClick={() => onMarkTweeted(date, index)}
+                        onClick={() => onMarkTweeted?.(date, index)}
                         className={`px-4 py-1.5 rounded-full text-xs font-bold tracking-wide transition-all bg-opacity-90 hover:bg-opacity-100 ${isTweeted
-                                ? "bg-slate-800 text-slate-500 hover:bg-slate-700"
-                                : "bg-blue-600 text-white shadow-lg shadow-blue-500/20"
+                            ? "bg-slate-800 text-slate-500 hover:bg-slate-700"
+                            : "bg-blue-600 text-white shadow-lg shadow-blue-500/20"
                             }`}
                     >
                         {isTweeted ? "UNDO" : "MARK DONE"}
