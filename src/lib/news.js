@@ -34,6 +34,17 @@ const TOOL_SIGNAL_KEYWORDS = [
     "video",
     "voice",
     "coding",
+    "chatgpt",
+    "claude",
+    "gemini",
+    "cursor",
+    "perplexity",
+    "midjourney",
+    "runway",
+    "suno",
+    "elevenlabs",
+    "copilot",
+    "stable diffusion",
 ];
 
 const TOOL_ACTIVITY_KEYWORDS = [
@@ -72,6 +83,16 @@ const NEWSY_EXCLUSION_KEYWORDS = [
     "ipo",
 ];
 
+const COMMUNITY_RSS_SOURCES = [
+    { source: "Medium-AITools", url: "https://medium.com/feed/tag/ai-tools", limit: 14 },
+    { source: "Medium-GenAI", url: "https://medium.com/feed/tag/generative-ai", limit: 14 },
+    { source: "Devto-AI", url: "https://dev.to/feed/tag/ai", limit: 14 },
+    { source: "Reddit-ChatGPT", url: "https://www.reddit.com/r/ChatGPT/.rss", limit: 18 },
+    { source: "Reddit-AI", url: "https://www.reddit.com/r/ArtificialInteligence/.rss", limit: 18 },
+    { source: "TowardsDataScience", url: "https://towardsdatascience.com/feed", limit: 12 },
+    { source: "AnalyticsVidhya", url: "https://www.analyticsvidhya.com/blog/feed/", limit: 12 },
+];
+
 function isToolSignalTitle(title) {
     const normalized = (title || "").toLowerCase();
     if (!normalized) return false;
@@ -86,13 +107,40 @@ function isToolSignalTitle(title) {
     return hasToolKeyword || hasActivityKeyword;
 }
 
+function sanitizeFeedText(value = "") {
+    return value
+        .replace("<![CDATA[", "")
+        .replace("]]>", "")
+        .replace(/<[^>]+>/g, " ")
+        .replace(/&amp;/g, "&")
+        .replace(/&quot;/g, "\"")
+        .replace(/&#39;/g, "'")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
 function parseRssItems(rssText) {
     return rssText.match(/<item>[\s\S]*?<\/item>/g) || [];
+}
+
+function parseAtomEntries(feedText) {
+    return feedText.match(/<entry[\s\S]*?<\/entry>/g) || [];
 }
 
 function parseRssField(item, tag) {
     const match = item.match(new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`, "i"));
     return match ? match[1] : "";
+}
+
+function parseAtomLink(entry) {
+    const selfClosing = entry.match(/<link[^>]*href=["']([^"']+)["'][^>]*\/?>/i);
+    if (selfClosing) return selfClosing[1];
+    const block = entry.match(/<link[^>]*>([\s\S]*?)<\/link>/i);
+    if (block) {
+        const href = block[1].match(/href=["']([^"']+)["']/i);
+        if (href) return href[1];
+    }
+    return "";
 }
 
 /**
@@ -247,6 +295,64 @@ async function fetchGoogleNewsFallback(limit = 20) {
     }
 }
 
+async function fetchCommunityRssToolSignals() {
+    const feeds = await Promise.all(
+        COMMUNITY_RSS_SOURCES.map(async ({ source, url, limit }) => {
+            try {
+                const response = await fetch(url, {
+                    next: { revalidate: 1800 },
+                    headers: {
+                        "User-Agent": "ai-x-tweet-agent/1.0",
+                        Accept: "application/rss+xml, application/atom+xml, application/xml;q=0.9, */*;q=0.8",
+                    },
+                });
+                if (!response.ok) return [];
+
+                const text = await response.text();
+                const rssItems = parseRssItems(text);
+                const atomEntries = parseAtomEntries(text);
+
+                if (rssItems.length > 0) {
+                    return rssItems.slice(0, limit).map((item) => {
+                        const title = sanitizeFeedText(parseRssField(item, "title"));
+                        const link = sanitizeFeedText(parseRssField(item, "link"));
+                        const dateRaw = parseRssField(item, "pubDate") || parseRssField(item, "updated");
+                        const pubDate = dateRaw ? new Date(dateRaw).getTime() : 0;
+
+                        return {
+                            title,
+                            url: link || "#",
+                            source,
+                            timeAgo: pubDate ? getTimeAgo(pubDate) : "unknown",
+                            timestamp: pubDate ? Math.floor(pubDate / 1000) : 0,
+                        };
+                    });
+                }
+
+                return atomEntries.slice(0, limit).map((entry) => {
+                    const title = sanitizeFeedText(parseRssField(entry, "title"));
+                    const link = sanitizeFeedText(parseAtomLink(entry));
+                    const dateRaw = parseRssField(entry, "updated") || parseRssField(entry, "published");
+                    const pubDate = dateRaw ? new Date(dateRaw).getTime() : 0;
+
+                    return {
+                        title,
+                        url: link || "#",
+                        source,
+                        timeAgo: pubDate ? getTimeAgo(pubDate) : "unknown",
+                        timestamp: pubDate ? Math.floor(pubDate / 1000) : 0,
+                    };
+                });
+            } catch (error) {
+                console.error(`Community source fetch error (${source}):`, error);
+                return [];
+            }
+        })
+    );
+
+    return feeds.flat();
+}
+
 function dedupeByTitleAndUrl(items = []) {
     const unique = [];
     const seen = new Set();
@@ -266,21 +372,22 @@ function dedupeByTitleAndUrl(items = []) {
  * Return 24h AI tool launches/updates focused feed.
  */
 export async function getTrendingNews() {
-    const [productHunt, hackerNews, githubSignals] = await Promise.all([
+    const [productHunt, hackerNews, githubSignals, communitySignals] = await Promise.all([
         fetchProductHuntFeed(24),
         fetchHackerNews(22),
         fetchGitHubAITools(24),
+        fetchCommunityRssToolSignals(),
     ]);
 
     const now = Date.now() / 1000;
-    const primary = [...productHunt, ...hackerNews, ...githubSignals]
+    const primary = [...productHunt, ...hackerNews, ...githubSignals, ...communitySignals]
         .filter((item) => now - item.timestamp <= 86400)
         .filter((item) => isToolSignalTitle(item.title))
         .sort((a, b) => b.timestamp - a.timestamp);
 
     let combined = dedupeByTitleAndUrl(primary);
 
-    if (combined.length < 18) {
+    if (combined.length < 26) {
         const googleFallback = await fetchGoogleNewsFallback(24);
         const fallbackFresh = googleFallback
             .filter((item) => now - item.timestamp <= 86400)
