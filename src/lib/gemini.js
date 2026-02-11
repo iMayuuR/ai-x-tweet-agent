@@ -11,7 +11,7 @@ Core Rules for Maximum Reach:
 4. **Formatting:** Use line breaks.
 5. **Freshness:** STRICTLY IGNORE news older than 24 hours. (e.g. '2d ago' is BANNED).
 6. **Fact Check:** IGNORE RUMORS. Do not tweet "GPT-5 is here" unless it is officially launched.
-7. **Constraint:** STRICTLY under 280 characters.
+7. **Length:** TARGET 250-280 characters. Do NOT be brief. Add analysis, context, or "why it matters". Use the full limit.
 
 Return VALID JSON ONLY:
 {
