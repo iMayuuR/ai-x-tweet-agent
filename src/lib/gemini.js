@@ -2,31 +2,34 @@
 import { getLastDaysTweets } from "./cache";
 import { getTrendingNews } from "./news";
 
-const SYSTEM_PROMPT = `You are a Top-Tier Viral Tech Influencer on X (Twitter).
-Your goal: Write 3 KILLER tweets that explode with engagement.
+// 2.0 Flash is extremely fast and high quality
+const MODEL_NAME = "gemini-2.0-flash-exp";
 
-**Persona:**
-- You are an insider, a builder, a visionary.
-- You don't just report news; you provide *insight* and *hot takes*.
-- Your tone is punchy, confident, and slightly provocative.
+const SYSTEM_PROMPT = `You are a Ghostwriter for a Silicon Valley Tech Visionary.
+Your goal: 3 high-signal, viral tweets about today's AI news.
 
-**Rules for Virality:**
-1. **The Hook:** The first line must force a stop. Use "stop scrolling" triggers.
-   - Good: "AI just killed coding interviews."
-   - Bad: "Here is a new update about AI."
-2. **Value Per Character:** No fluff. Every word must earn its place.
-3. **Format:** Use short lines for readability.
-4. **Analysis > News:** Don't just say "X happened." Say "X happened, and here is why Y is dead."
-5. **Tags:** Mention @OpenAI, @GoogleDeepMind, @AnthropicAI when relevant.
-6. **No Cringe:** No hashtags like #AI #Tech #Future. Use max 1 relevant tag if needed.
-7. **Length:** 200-280 chars. Use the space.
+**Style Guide:**
+- **No cringe:** BANNED words: "game-changer", "revolution", "buckle up", "unleash", "world of possibilities".
+- **Direct & Punchy:** Start with the insight. Cut the fluff.
+- **Insider Tone:** Sound like you are building the future, not just watching it.
+- **Skeptical Optimism:** Hype is cheap. Analysis is valuable.
 
-**Output Format:**
-Strictly JSON. No Markdown. sourceAge is the age from the context.
+**Tweet Structure:**
+1. **The Hook:** A bold claim or surprising fact.
+2. **The Meat:** The core update + why it matters.
+3. **The Take:** Your unique perspective or prediction.
+
+**Format:**
+- Max 280 chars.
+- Use line breaks for readability.
+- Max 1 tag (e.g. @OpenAI) only if relevant.
+
+**Output:**
+Strictly JSON.
 {
   "tweets": [
     {
-      "text": "The hook...\n\nThe insight...\n\nThe conclusion.",
+      "text": "Tweet body here...",
       "sourceAge": "2h"
     }
   ]
@@ -34,48 +37,46 @@ Strictly JSON. No Markdown. sourceAge is the age from the context.
 
 export async function generateTweets() {
     const apiKey = process.env.GEMINI_API_KEY;
-    // Upgrade to Pro for quality. Reduce count to 3 to fit in timeout.
-    const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 
     if (!apiKey) {
         throw new Error("Missing required environment variable: GEMINI_API_KEY");
     }
 
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${apiKey}`;
 
     const today = new Date().toLocaleDateString("en-US", {
-        weekday: "long", year: "numeric", month: "long", day: "numeric", timeZone: "Asia/Kolkata",
+        weekday: "long", year: "numeric", month: "long", day: "numeric"
     });
 
-    // 1. Fetch Trending News
+    // 1. Fetch Trending News (Fast Google RSS)
     let newsContext = "";
     try {
         const allNews = await getTrendingNews();
         if (allNews && allNews.length > 0) {
-            // Take fewer items to reduce input tokens and latency
-            const shuffledNews = allNews.slice(0, 10);
-            newsContext = shuffledNews.map((n, i) => `${i + 1}. [${n.source} | ${n.timeAgo}] ${n.title}`).join("\n");
+            // Take top 8 items for focused context (Flash handle 1M context, but let's be concise)
+            const topNews = allNews.slice(0, 8);
+            newsContext = topNews.map((n, i) => `${i + 1}. ${n.title} (Source: ${n.source}, Age: ${n.timeAgo})`).join("\n");
         } else {
-            newsContext = "General AI Trends (Model Reasoning Mode)";
+            newsContext = "General AI Trends (No specific news found)";
         }
     } catch (e) {
         console.error("News fetch failed:", e);
         newsContext = "General AI Trends";
     }
 
-    // 2. Fetch History
+    // 2. Fetch History (Quick Check)
     let historyPrompt = "";
     try {
-        const previousTweets = await getLastDaysTweets(2);
+        const previousTweets = await getLastDaysTweets(1);
         if (previousTweets.length > 0) {
-            historyPrompt = `\n\nIGNORE these topics/styles (already tweeted):\n- ${previousTweets.slice(0, 5).join("\n- ")}`;
+            historyPrompt = `\n\nAVOID these recent topics:\n- ${previousTweets.slice(0, 5).join("\n- ")}`;
         }
     } catch (e) { console.error("History fetch failed:", e); }
 
     try {
-        // Vercel Hobby Limit is 10s. Set safe timeout.
+        // Vercel Limit 10s. Set 9s timeout for safety.
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 9500);
+        const timeoutId = setTimeout(() => controller.abort(), 9000);
 
         const response = await fetch(endpoint, {
             method: "POST",
@@ -85,7 +86,7 @@ export async function generateTweets() {
                 contents: [{
                     role: "user",
                     parts: [{
-                        text: `${SYSTEM_PROMPT}\n\nTODAY'S NEWS (${today}):\n${newsContext}\n${historyPrompt}\n\nTask: Pick the top 3 most impactful stories and write high-viral tweets.`,
+                        text: `${SYSTEM_PROMPT}\n\nTODAY'S INTEL (${today}):\n${newsContext}\n${historyPrompt}\n\nTask: Draft 3 viral tweets based on the Intel above.`,
                     }],
                 }],
                 safetySettings: [
@@ -95,8 +96,8 @@ export async function generateTweets() {
                     { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
                 ],
                 generationConfig: {
-                    temperature: 0.85, // Higher creativity
-                    maxOutputTokens: 1024,
+                    temperature: 0.8,
+                    maxOutputTokens: 512, // Tweets are short, no need for 1024
                 },
             }),
         });
@@ -112,12 +113,11 @@ export async function generateTweets() {
 
         if (!content) throw new Error("No content in Gemini response");
 
-        // Robust JSON Cleanup
+        // Advanced Cleaning
         let jsonStr = content.trim();
-        const codeBlockMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
-        if (codeBlockMatch) jsonStr = codeBlockMatch[1].trim();
-        else jsonStr = jsonStr.replace(/```(?:json)?/gi, "").trim();
-
+        // Remove markdown blocks
+        jsonStr = jsonStr.replace(/```json/gi, "").replace(/```/g, "").trim();
+        // Extract object
         const firstBrace = jsonStr.indexOf("{");
         const lastBrace = jsonStr.lastIndexOf("}");
         if (firstBrace !== -1 && lastBrace !== -1) jsonStr = jsonStr.slice(firstBrace, lastBrace + 1);
@@ -126,14 +126,9 @@ export async function generateTweets() {
         try {
             parsed = JSON.parse(jsonStr);
         } catch (e) {
-            // Attempt auto-fix for common trailing comma issues
-            try {
-                const fixedStr = jsonStr.replace(/,\s*}/g, "}").replace(/,\s*]/g, "]");
-                parsed = JSON.parse(fixedStr);
-            } catch (e2) {
-                console.error("JSON Parse Failed:", jsonStr);
-                throw new Error("Invalid JSON from AI");
-            }
+            // Last resort fix
+            const fixed = jsonStr.replace(/,\s*}/g, "}").replace(/,\s*]/g, "]");
+            parsed = JSON.parse(fixed);
         }
 
         if (!parsed.tweets || !Array.isArray(parsed.tweets)) throw new Error("Missing 'tweets' array");
@@ -144,12 +139,11 @@ export async function generateTweets() {
         }));
 
     } catch (error) {
-        console.error("Critical Generation Error:", error);
-        // Fallback (System Tweets)
+        console.error("Gemini Error:", error);
         return [
-            { text: "AI Model is upgrading... The next batch will be smarter. 🧠", sourceAge: "System" },
-            { text: "Experiencing high demand. High-quality inference takes time! ⏳", sourceAge: "System" },
-            { text: "Serverless timeout. Please try 'Generate' again. �", sourceAge: "System" }
+            { text: "AI is calibrating... The singularity is buffering. �", sourceAge: "System" },
+            { text: "High traffic on the neural net. Stand by. 🚦", sourceAge: "System" },
+            { text: "Gemini is thinking too hard. Try again in 5s. 🧠", sourceAge: "System" }
         ];
     }
 }
