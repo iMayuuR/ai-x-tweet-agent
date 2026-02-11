@@ -2,8 +2,8 @@
 import { getLastDaysTweets } from "./cache";
 import { getTrendingNews } from "./news";
 
-// 2.0 Flash is extremely fast and high quality
-const MODEL_NAME = "gemini-2.0-flash-exp";
+// Reverting to STABLE model to fix 404 errors
+const MODEL_NAME = "gemini-1.5-flash";
 
 const SYSTEM_PROMPT = `You are a Ghostwriter for a Silicon Valley Tech Visionary.
 Your goal: 3 high-signal, viral tweets about today's AI news.
@@ -48,23 +48,22 @@ export async function generateTweets() {
         weekday: "long", year: "numeric", month: "long", day: "numeric"
     });
 
-    // 1. Fetch Trending News (Fast Google RSS)
+    // 1. Fetch Trending News
     let newsContext = "";
     try {
         const allNews = await getTrendingNews();
         if (allNews && allNews.length > 0) {
-            // Take top 8 items for focused context (Flash handle 1M context, but let's be concise)
             const topNews = allNews.slice(0, 8);
             newsContext = topNews.map((n, i) => `${i + 1}. ${n.title} (Source: ${n.source}, Age: ${n.timeAgo})`).join("\n");
         } else {
-            newsContext = "General AI Trends (No specific news found)";
+            newsContext = "General AI Trends (Model Reasoning Mode)";
         }
     } catch (e) {
         console.error("News fetch failed:", e);
         newsContext = "General AI Trends";
     }
 
-    // 2. Fetch History (Quick Check)
+    // 2. Fetch History
     let historyPrompt = "";
     try {
         const previousTweets = await getLastDaysTweets(1);
@@ -74,7 +73,7 @@ export async function generateTweets() {
     } catch (e) { console.error("History fetch failed:", e); }
 
     try {
-        // Vercel Limit 10s. Set 9s timeout for safety.
+        // Vercel Limit 10s. Set 9s timeout.
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 9000);
 
@@ -97,7 +96,7 @@ export async function generateTweets() {
                 ],
                 generationConfig: {
                     temperature: 0.8,
-                    maxOutputTokens: 512, // Tweets are short, no need for 1024
+                    maxOutputTokens: 512,
                 },
             }),
         });
@@ -105,7 +104,8 @@ export async function generateTweets() {
 
         if (!response.ok) {
             const errorText = await response.text();
-            throw new Error(`Gemini API error (${response.status}): ${errorText}`);
+            console.error(`Gemini API Failed: ${response.status} - ${errorText}`);
+            throw new Error(`Gemini API error (${response.status})`);
         }
 
         const data = await response.json();
@@ -115,9 +115,7 @@ export async function generateTweets() {
 
         // Advanced Cleaning
         let jsonStr = content.trim();
-        // Remove markdown blocks
         jsonStr = jsonStr.replace(/```json/gi, "").replace(/```/g, "").trim();
-        // Extract object
         const firstBrace = jsonStr.indexOf("{");
         const lastBrace = jsonStr.lastIndexOf("}");
         if (firstBrace !== -1 && lastBrace !== -1) jsonStr = jsonStr.slice(firstBrace, lastBrace + 1);
@@ -126,7 +124,6 @@ export async function generateTweets() {
         try {
             parsed = JSON.parse(jsonStr);
         } catch (e) {
-            // Last resort fix
             const fixed = jsonStr.replace(/,\s*}/g, "}").replace(/,\s*]/g, "]");
             parsed = JSON.parse(fixed);
         }
@@ -139,11 +136,11 @@ export async function generateTweets() {
         }));
 
     } catch (error) {
-        console.error("Gemini Error:", error);
+        // Fallback
         return [
-            { text: "AI is calibrating... The singularity is buffering. �", sourceAge: "System" },
-            { text: "High traffic on the neural net. Stand by. 🚦", sourceAge: "System" },
-            { text: "Gemini is thinking too hard. Try again in 5s. 🧠", sourceAge: "System" }
+            { text: "System Update: Checking API Connectivity... 📡", sourceAge: "System" },
+            { text: "AI is rebooting. Please generate again in a moment. 🔄", sourceAge: "System" },
+            { text: "Experiencing high traffic. Stand by. 🚦", sourceAge: "System" }
         ];
     }
 }
