@@ -72,14 +72,14 @@ export async function generateTweets() {
                     role: "user",
                     parts: [
                         {
-                            text: `${SYSTEM_PROMPT}\n\nTODAY'S TRENDING AI NEWS (${today}):\n${newsContext}\n${historyPrompt}\n\nTask: Select the top 10 most viral-worthy stories from the list above and rewrite them as unique tweets. IMPORTANT: Include the 'sourceAge' (e.g. '2h', '5m') from the news item you used.`,
+                            text: `${SYSTEM_PROMPT}\n\nTODAY'S TRENDING AI NEWS (${today}):\n${newsContext}\n${historyPrompt}\n\nTask: Select the top 5 most viral-worthy stories from the list above and rewrite them as unique tweets. IMPORTANT: Include the 'sourceAge' (e.g. '2h', '5m') from the news item you used.`,
                         },
                     ],
                 },
             ],
             generationConfig: {
                 temperature: 0.8,
-                maxOutputTokens: 4096,
+                maxOutputTokens: 2048, // Reduced for 5 tweets
             },
         }),
     });
