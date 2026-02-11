@@ -16,12 +16,22 @@ function loadEnv() {
 }
 loadEnv();
 
+const MODELS = [
+    "gemini-2.0-flash-exp",
+    "gemini-1.5-flash",
+    "gemini-1.5-flash-8b",
+    "gemini-1.5-flash-latest",
+    "gemini-1.5-flash-001",
+    "gemini-1.5-flash-002",
+    "gemini-1.5-pro",
+    "gemini-pro",
+    "gemini-1.0-pro"
+];
+
 async function testModel(modelName) {
     const apiKey = process.env.GEMINI_API_KEY;
-    console.log(`Testing Model: ${modelName}`);
-    console.log(`Key: ${apiKey ? apiKey.slice(0, 5) + '... (Length: ' + apiKey.length + ')' : 'MISSING'}`);
-
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+
     try {
         const response = await fetch(endpoint, {
             method: "POST",
@@ -31,18 +41,31 @@ async function testModel(modelName) {
             })
         });
 
-        if (!response.ok) {
-            console.log(`❌ Failed ${response.status}`);
-            console.log(await response.text());
+        if (response.ok) {
+            console.log(`✅ ${modelName}: WORKING!`);
+            return true;
         } else {
-            console.log(`✅ Success!`);
-            const data = await response.json();
-            console.log(data.candidates?.[0]?.content?.parts?.[0]?.text);
+            // console.log(`❌ ${modelName}: ${response.status}`);
+            process.stdout.write(`.`); // Compact output
+            return false;
         }
     } catch (e) {
-        console.log(`❌ Error: ${e.message}`);
+        process.stdout.write(`x`);
+        return false;
     }
 }
 
-// User requested specifically 'gemini-2.5-flash'.
-testModel("gemini-2.5-flash");
+async function runTests() {
+    console.log(`Testing ${MODELS.length} models with key ending in ...${process.env.GEMINI_API_KEY?.slice(-4)}`);
+
+    for (const model of MODELS) {
+        if (await testModel(model)) {
+            console.log(`\n🎉 FOUND WORKING MODEL: ${model}`);
+            // We found one!
+            break;
+        }
+    }
+    console.log("\nDone.");
+}
+
+runTests();

@@ -2,8 +2,8 @@
 import { getLastDaysTweets } from "./cache";
 import { getTrendingNews } from "./news";
 
-// Reverting to STABLE model to fix 404 errors
-const MODEL_NAME = "gemini-1.5-flash";
+// 2.5 Flash as requested by user (Private/Custom Access)
+const MODEL_NAME = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 
 const SYSTEM_PROMPT = `You are a Ghostwriter for a Silicon Valley Tech Visionary.
 Your goal: 3 high-signal, viral tweets about today's AI news.
@@ -104,8 +104,7 @@ export async function generateTweets() {
 
         if (!response.ok) {
             const errorText = await response.text();
-            console.error(`Gemini API Failed: ${response.status} - ${errorText}`);
-            throw new Error(`Gemini API error (${response.status})`);
+            throw new Error(`Gemini API error (${response.status}): ${errorText}`);
         }
 
         const data = await response.json();
@@ -136,11 +135,11 @@ export async function generateTweets() {
         }));
 
     } catch (error) {
-        // Fallback
+        console.error("Gemini Error:", error);
         return [
-            { text: "System Update: Checking API Connectivity... 📡", sourceAge: "System" },
-            { text: "AI is rebooting. Please generate again in a moment. 🔄", sourceAge: "System" },
-            { text: "Experiencing high traffic. Stand by. 🚦", sourceAge: "System" }
+            { text: "AI Model busy. Stand by. 🚦", sourceAge: "System" },
+            { text: "Serverless timeout. Retrying... 🔄", sourceAge: "System" },
+            { text: "Gemini 2.5 is calibrating. 🧠", sourceAge: "System" }
         ];
     }
 }
