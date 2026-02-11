@@ -13,12 +13,12 @@ Core Rules for Maximum Reach:
 6. **Fact Check:** IGNORE RUMORS. Do not tweet "GPT-5 is here" unless it is officially launched.
 7. **Length:** TARGET 250-280 characters. Do NOT be brief. Add analysis, context, or "why it matters". Use the full limit.
 
-Return VALID JSON ONLY:
+Return VALID JSON ONLY under any circumstances. No markdown. No "Here is the JSON".
 {
   "tweets": [
     {
       "text": "Tweet text...",
-      "sourceAge": "2h " // Extract age from the source news item
+      "sourceAge": "2h"
     }
   ]
 }`;
@@ -41,10 +41,10 @@ export async function generateTweets() {
         timeZone: "Asia/Kolkata",
     });
 
-    // 1. Fetch Trending News (The Source of Truth)
+    // 1. Fetch Trending News
     const allNews = await getTrendingNews();
 
-    // Randomize selection from top 30 to ensure variety on re-generation
+    // Randomize selection
     const shuffledNews = allNews
         .slice(0, 30)
         .sort(() => 0.5 - Math.random())
@@ -96,25 +96,43 @@ export async function generateTweets() {
         throw new Error("No content in Gemini response");
     }
 
-    // Clean JSON response more robustly
+    console.log("Raw Gemini Response:", content.slice(0, 200));
+
+    // Clean JSON response (Aggressive)
     let jsonStr = content.trim();
 
-    // Remove markdown code blocks if present
-    jsonStr = jsonStr.replace(/```json/gi, "").replace(/```/g, "").trim();
+    // 1. Regex to extract code block content
+    const codeBlockMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (codeBlockMatch) {
+        jsonStr = codeBlockMatch[1].trim();
+    } else {
+        // Fallback: remove simple markers
+        jsonStr = jsonStr.replace(/```(?:json)?/gi, "").trim();
+    }
 
-    // Extract JSON object from potential surrounding text
+    // 2. Find outermost braces
     const firstBrace = jsonStr.indexOf("{");
     const lastBrace = jsonStr.lastIndexOf("}");
 
     if (firstBrace !== -1 && lastBrace !== -1) {
         jsonStr = jsonStr.slice(firstBrace, lastBrace + 1);
+    } else {
+        console.error("Gemini Parse Error: No JSON braces found in", content);
+        throw new Error("Invalid response format: No JSON object found");
     }
 
     let parsed;
     try {
         parsed = JSON.parse(jsonStr);
-    } catch {
-        throw new Error(`Failed to parse Gemini response: ${jsonStr.slice(0, 200)}...`);
+    } catch (e) {
+        console.error("Gemini Parse Failed. Cleaned:", jsonStr);
+        // Attempt to fix trailing commas
+        try {
+            const fixedStr = jsonStr.replace(/,\s*}/g, "}").replace(/,\s*]/g, "]");
+            parsed = JSON.parse(fixedStr);
+        } catch (e2) {
+            throw new Error(`Failed to parse Gemini response: ${e.message}. Raw (truncated): ${content.slice(0, 100)}...`);
+        }
     }
 
     if (!parsed.tweets || !Array.isArray(parsed.tweets)) {
@@ -126,7 +144,7 @@ export async function generateTweets() {
         const text = typeof t === "string" ? t : t.text;
         const sourceAge = typeof t === "object" ? t.sourceAge : "";
         return {
-            text: text.trim(),
+            text: text ? text.trim() : "Error parsing tweet text",
             sourceAge: sourceAge || "Fresh"
         };
     });
