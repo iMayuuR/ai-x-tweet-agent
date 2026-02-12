@@ -62,8 +62,9 @@ const NEWSY_PATTERNS = [
 ];
 
 const ONE_WORD_PREFIX_RE = /^[A-Z][A-Z0-9]{2,16}:/;
-const URL_RE = /https?:\/\/\S+|www\.\S+/i;
+const URL_RE = /https?:\/\/\S+|www\.\S+/gi;
 const EMOJI_RE = /[\u{1F300}-\u{1FAFF}\u2600-\u27BF]/u;
+const FRAGMENT_END_RE = /\b(and|or|with|for|to|in|on|at|from|by|of|is|are|was|were|immediate|setup|output|fast|strong|practical|daily|today|now)\b$/i;
 
 const TOOL_LIBRARY = [
     { name: "ChatGPT", handle: "@OpenAI", link: "https://chatgpt.com", audience: "founders and PMs", useCase: "draft product specs and user stories in minutes", capability: "turn rough notes into clean drafts and action plans" },
@@ -237,8 +238,85 @@ function hasEmoji(text) {
     return EMOJI_RE.test(text || "");
 }
 
-function hasUrl(text) {
-    return URL_RE.test(text || "");
+function extractUrls(text) {
+    return (text || "").match(/https?:\/\/\S+|www\.\S+/gi) || [];
+}
+
+function normalizeUrlToken(token) {
+    return (token || "").replace(/[),.!?;:]+$/g, "").trim();
+}
+
+function isLikelyValidUrlToken(token) {
+    const raw = normalizeUrlToken(token);
+    if (!raw) return false;
+
+    const withProtocol = raw.startsWith("www.") ? `https://${raw}` : raw;
+    try {
+        const parsed = new URL(withProtocol);
+        const host = (parsed.hostname || "").toLowerCase();
+        if (!host || !host.includes(".") || host.endsWith(".")) return false;
+        if (!/[a-z]/i.test(host)) return false;
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+function hasValidUrl(text) {
+    const urls = extractUrls(text);
+    return urls.some((url) => isLikelyValidUrlToken(url));
+}
+
+function stripBrokenUrlTokens(text) {
+    const tokens = (text || "").split(/\s+/).filter(Boolean);
+    const filtered = [];
+
+    for (const token of tokens) {
+        if (/^(https?:\/\/|www\.)/i.test(token) && !isLikelyValidUrlToken(token)) {
+            continue;
+        }
+        filtered.push(token);
+    }
+
+    return filtered.join(" ").replace(/\s+/g, " ").trim();
+}
+
+function ensureCleanEnding(text) {
+    let output = (text || "").replace(/\s+/g, " ").trim();
+    output = stripBrokenUrlTokens(output);
+    output = output.replace(/\s+(#\w+)$/g, " $1").trim();
+
+    const endsWithAllowed =
+        /[.!?]$/.test(output) ||
+        /#[a-z0-9_]+$/i.test(output) ||
+        /(?:https?:\/\/\S+|www\.\S+)$/i.test(output);
+
+    if (endsWithAllowed) return output;
+
+    output = output.replace(/[,:;]+$/g, "").trim();
+    output = output.replace(FRAGMENT_END_RE, "").trim();
+
+    const recheckAllowed =
+        /[.!?]$/.test(output) ||
+        /#[a-z0-9_]+$/i.test(output) ||
+        /(?:https?:\/\/\S+|www\.\S+)$/i.test(output);
+
+    if (recheckAllowed) return output;
+
+    if (output.length < MAX_TWEET_LENGTH) {
+        return `${output}.`.trim();
+    }
+
+    const cutAt = output.lastIndexOf(" ");
+    if (cutAt > 0) {
+        const shorter = output.slice(0, cutAt).trim();
+        if (!shorter) return output;
+        if (/[.!?]$/.test(shorter)) return shorter;
+        if (shorter.length < MAX_TWEET_LENGTH) return `${shorter}.`;
+        return shorter;
+    }
+
+    return output;
 }
 
 function isNewsy(text) {
@@ -310,6 +388,7 @@ function ensureOneWordPrefix(text, seed = 0) {
     output = output.replace(/^[^\w@#]+/u, "").trim();
     output = output.replace(/^[A-Za-z][A-Za-z0-9_-]{1,24}\s+AI\s+tool\s+find:\s*/i, "").trim();
     output = output.replace(/^[A-Za-z][A-Za-z0-9_-]{1,24}:\s*/i, "").trim();
+    output = output.replace(/^(INSIGHT|SPOTLIGHT|HOTDROP|BREAKOUT|POWERMOVE)\b\s*/i, "").trim();
 
     const prefix = pick(EXPERT_HOOK_WORDS, seed).replace(/[^A-Z0-9]/gi, "") || "INSIGHT";
     return `${prefix}: ${output}`.replace(/\s+/g, " ").trim();
@@ -335,12 +414,35 @@ function ensureLinkAndMention(text, seed = 0) {
     let output = (text || "").trim();
     const fallbackTool = TOOL_LIBRARY[seed % TOOL_LIBRARY.length] || TOOL_LIBRARY[0];
 
-    if (!hasUrl(output)) {
+    if (!hasValidUrl(output)) {
         output = `${output} Link: ${fallbackTool.link}`.replace(/\s+/g, " ").trim();
     }
 
     if (countMentions(output) < 1) {
         const mention = fallbackTool.handle || "@OpenAI";
+        output = `${output} ${mention}`.replace(/\s+/g, " ").trim();
+    }
+
+    return output;
+}
+
+function ensureRequiredTokens(text, seed = 0) {
+    let output = (text || "").replace(/\s+/g, " ").trim();
+    const fallbackTool = TOOL_LIBRARY[seed % TOOL_LIBRARY.length] || TOOL_LIBRARY[0];
+    const linkToken = `Link: ${fallbackTool.link}`;
+
+    if (!hasValidUrl(output)) {
+        const reserve = linkToken.length + 1;
+        const cap = Math.max(MIN_TWEET_LENGTH - 1, MAX_TWEET_LENGTH - reserve);
+        output = trimToMaxLength(output, cap);
+        output = `${output} ${linkToken}`.replace(/\s+/g, " ").trim();
+    }
+
+    if (countMentions(output) < 1) {
+        const mention = fallbackTool.handle || "@OpenAI";
+        const reserve = mention.length + 1;
+        const cap = Math.max(MIN_TWEET_LENGTH - 1, MAX_TWEET_LENGTH - reserve);
+        output = trimToMaxLength(output, cap);
         output = `${output} ${mention}`.replace(/\s+/g, " ").trim();
     }
 
@@ -447,17 +549,23 @@ function hardenTweetText(text, seed = 0) {
 
     output = ensureOneWordPrefix(output, seed);
     output = ensureLinkAndMention(output, seed + 1);
+    output = ensureRequiredTokens(output, seed + 1);
     output = ensureEmoji(output, seed + 2);
     output = ensureHashtagRange(output, seed + 3);
     output = padTowardTargetLength(output, seed + 4);
     output = padToMinimumLength(output, seed + 5);
     output = ensureSentenceEnding(output);
     output = trimToMaxLength(output);
+    output = ensureCleanEnding(output);
+    output = ensureRequiredTokens(output, seed + 11);
+    output = trimToMaxLength(output);
     output = ensureHashtagRange(output, seed + 6);
+    output = ensureCleanEnding(output);
 
     if (output.length < MIN_TWEET_LENGTH) {
         output = padTowardTargetLength(output, seed + 7);
         output = padToMinimumLength(output, seed + 8);
+        output = ensureRequiredTokens(output, seed + 12);
         output = trimToMaxLength(output);
     }
 
@@ -483,7 +591,18 @@ function hardenTweetText(text, seed = 0) {
         output = `${output} ${add}`.replace(/\s+/g, " ").trim();
     }
 
-    return trimToMaxLength(output).trim();
+    output = ensureRequiredTokens(output, seed + 13);
+    output = ensureHashtagRange(output, seed + 14);
+    output = ensureCleanEnding(output);
+    output = trimToMaxLength(output);
+
+    if (output.length < MIN_TWEET_LENGTH) {
+        output = padToMinimumLength(output, seed + 15);
+        output = ensureCleanEnding(output);
+        output = trimToMaxLength(output);
+    }
+
+    return output.trim();
 }
 
 function validateTweetText(text) {
@@ -501,11 +620,20 @@ function validateTweetText(text) {
     if (length > MAX_TWEET_LENGTH) issues.push(`too long (${length})`);
     if (isNewsy(value)) issues.push("newsy framing");
     if (!ONE_WORD_PREFIX_RE.test(value)) issues.push("missing one-word prefix");
-    if (!hasUrl(value)) issues.push("missing link");
+    if (!hasValidUrl(value)) issues.push("missing link");
+    if (extractUrls(value).some((url) => !isLikelyValidUrlToken(url))) issues.push("broken link");
     if (countMentions(value) < 1) issues.push("missing account tag");
     if (!hasEmoji(value)) issues.push("missing emoji");
     if (hashtags < MIN_HASHTAGS) issues.push(`missing hashtags (${hashtags})`);
     if (hashtags > MAX_HASHTAGS) issues.push(`too many hashtags (${hashtags})`);
+
+    const trimmedTail = value.replace(/[.!?]+$/g, "").trim();
+    const completeEnding =
+        /[.!?]$/.test(value) ||
+        /#[a-z0-9_]+$/i.test(value) ||
+        /(?:https?:\/\/\S+|www\.\S+)$/i.test(value);
+    if (!completeEnding) issues.push("incomplete ending");
+    if (FRAGMENT_END_RE.test(trimmedTail)) issues.push("truncated ending");
 
     return issues;
 }
@@ -617,14 +745,13 @@ function buildFallbackTweet(tool, index, entropy = 0) {
         .slice(0, 2)
         .join(" ");
 
-    const hookWord = pick(EXPERT_HOOK_WORDS, index + entropy);
-    const intro = `${pick(openers, index + entropy)} ${hookWord}: ${tool.name}${tool.handle ? ` ${tool.handle}` : ""}.`;
+    const intro = `${pick(openers, index + entropy)} ${tool.name}${tool.handle ? ` ${tool.handle}` : ""}.`;
     const body = `It helps ${tool.audience} ${tool.useCase}, and the core win is simple: ${tool.capability}.`;
     const proof = pick(proofLines, index + entropy);
     const hype = pick(ENGAGEMENT_LINES, index + entropy);
-    const linkLine = `Try: ${tool.link}`;
+    const linkLine = `Link: ${tool.link}`;
 
-    return hardenTweetText(`${intro} ${body} ${proof} ${hype} ${linkLine} ${hashtags}`, index + entropy);
+    return hardenTweetText(`${intro} ${linkLine} ${body} ${proof} ${hype} ${hashtags}`, index + entropy);
 }
 
 function buildLocalBackupTweets({ blockedTweets = [], existing = [], signals = [], nowIso = "" }) {
@@ -698,7 +825,7 @@ function ensureExactTenTweets({ candidateTweets = [], blockedTweets = [], signal
         for (let i = 0; i < 100 && accepted.length < TARGET_TWEETS; i += 1) {
             const tool = TOOL_LIBRARY[(i + nonce.length) % TOOL_LIBRARY.length];
             const text = hardenTweetText(
-                `${pick(EXPERT_HOOK_WORDS, i)} ${tool.name}${tool.handle ? ` ${tool.handle}` : ""} is delivering strong creator momentum right now with practical wins for ${tool.audience}. Real use-case: ${tool.useCase}. Core edge: ${tool.capability}. Link: ${tool.link} ${DEFAULT_HASHTAGS[0]} ${pick(DEFAULT_HASHTAGS, i + 1)}`,
+                `${tool.name}${tool.handle ? ` ${tool.handle}` : ""} is delivering strong creator momentum right now with practical wins for ${tool.audience}. Real use-case: ${tool.useCase}. Core edge: ${tool.capability}. Link: ${tool.link} ${DEFAULT_HASHTAGS[0]} ${pick(DEFAULT_HASHTAGS, i + 1)}`,
                 i + nonce.length
             );
             const duplicateWithAccepted = accepted.some((item) => isNearDuplicate(item.text, text));
@@ -715,7 +842,7 @@ function ensureExactTenTweets({ candidateTweets = [], blockedTweets = [], signal
         const index = accepted.length;
         const tool = TOOL_LIBRARY[index % TOOL_LIBRARY.length];
         const text = hardenTweetText(
-            `${pick(EXPERT_HOOK_WORDS, index)} ${tool.name}${tool.handle ? ` ${tool.handle}` : ""} gives builders a practical speed boost. Best use-case: ${tool.useCase}. Why it hits: ${tool.capability}. Try it now: ${tool.link} ${DEFAULT_HASHTAGS[0]}`,
+            `${tool.name}${tool.handle ? ` ${tool.handle}` : ""} gives builders a practical speed boost. Best use-case: ${tool.useCase}. Why it hits: ${tool.capability}. Try it now: ${tool.link} ${DEFAULT_HASHTAGS[0]}`,
             index + 200
         );
         accepted.push({
