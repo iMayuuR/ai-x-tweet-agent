@@ -1,18 +1,38 @@
 {
-    "name": "AI Tools Explorer",
-    "short_name": "AI Tools",
-    "description": "Daily viral AI tweets and tool discoveries",
-    "start_url": "/",
-    "display": "standalone",
-    "background_color": "#0a0a0f",
-    "theme_color": "#0a0a0f",
-    "orientation": "portrait",
-    "icons": [
-        {
-            "src": "/icon.svg",
-            "sizes": "192x192 512x512",
-            "type": "image/svg+xml",
-            "purpose": "any maskable"
-        }
-    ]
+  "name": "X AI Tweet",
+  "short_name": "X AI Tweet",
+  "description": "Daily AI tool discoveries and tweet generator",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#060a16",
+  "theme_color": "#060a16",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/pwa-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-192x192-maskable.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/pwa-512x512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
 }
