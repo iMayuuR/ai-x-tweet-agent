@@ -183,17 +183,26 @@ export default function Home() {
   async function handleMarkTweeted(targetDate, index) {
     if (selectedRunId) return;
     if (!targetDate || typeof index !== "number") return;
+    if (!Array.isArray(tweetedStatus)) return; // Guard against undefined state
 
     const previous = tweetedStatus[index] || false;
     const next = !previous;
 
-    setTweetedStatus((prev) => prev.map((value, i) => (i === index ? next : value)));
-    setTweets((prev) =>
-      prev.map((tweet, i) => {
-        if (i !== index || typeof tweet !== "object" || !tweet) return tweet;
+    // Optimistic update
+    setTweetedStatus((prev) => {
+      if (!Array.isArray(prev)) return prev;
+      return prev.map((value, i) => (i === index ? next : value));
+    });
+
+    setTweets((prev) => {
+      if (!Array.isArray(prev)) return prev;
+      return prev.map((tweet, i) => {
+        if (i !== index) return tweet;
+        if (typeof tweet === "string") return { text: tweet, posted: next }; // Convert string to object
+        if (!tweet) return tweet;
         return { ...tweet, posted: next };
-      })
-    );
+      });
+    });
 
     try {
       const res = await fetch("/api/mark", {
@@ -211,15 +220,21 @@ export default function Home() {
       setTweetedStatus((prev) => prev.map((value, i) => (i === index ? serverStatus : value)));
       setTweets((prev) =>
         prev.map((tweet, i) => {
-          if (i !== index || typeof tweet !== "object" || !tweet) return tweet;
+          if (i !== index) return tweet;
+          if (typeof tweet === "string") return { text: tweet, posted: serverStatus };
+          if (!tweet) return tweet;
           return { ...tweet, posted: serverStatus };
         })
       );
     } catch (err) {
+      console.error("Mark tweet failed:", err);
+      // Revert on error
       setTweetedStatus((prev) => prev.map((value, i) => (i === index ? previous : value)));
       setTweets((prev) =>
         prev.map((tweet, i) => {
-          if (i !== index || typeof tweet !== "object" || !tweet) return tweet;
+          if (i !== index) return tweet;
+          if (typeof tweet === "string") return { text: tweet, posted: previous };
+          if (!tweet) return tweet;
           return { ...tweet, posted: previous };
         })
       );
