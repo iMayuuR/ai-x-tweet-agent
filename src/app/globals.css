@@ -981,10 +981,21 @@ body {
   pointer-events: auto;
 }
 
+.header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
 .history-selector-wrapper {
   position: relative;
   display: inline-flex;
   align-items: center;
+}
+
+.saved-runs-wrapper .history-select {
+  min-width: 126px;
 }
 
 .history-select {
@@ -1032,8 +1043,4 @@ body {
 .header-top-row .btn-logout {
   position: static;
   margin: 0;
-}
-
-.header-top-row .btn-logout {
-  margin-left: auto;
 }

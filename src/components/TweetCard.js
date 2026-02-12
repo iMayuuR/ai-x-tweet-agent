@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-export default function TweetCard({ tweet, index, date, isTweeted, onMarkTweeted }) {
+export default function TweetCard({ tweet, index, date, isTweeted, onMarkTweeted, markDisabled = false }) {
     const [copied, setCopied] = useState(false);
 
     const tweetText = typeof tweet === "string" ? tweet : tweet.text;
@@ -77,7 +77,7 @@ export default function TweetCard({ tweet, index, date, isTweeted, onMarkTweeted
                 <div className="flex justify-between items-start mb-4">
                     <div className="flex items-center gap-3">
                         <span className="text-xs font-mono text-slate-400 uppercase tracking-wider bg-slate-800/50 px-2 py-0.5 rounded">
-                            {freshnessLabel} • #{index + 1}
+                            {freshnessLabel} - #{index + 1}
                         </span>
                         {/* Freshness Badge */}
                         {sourceAge && sourceAge !== "Fresh" && (
@@ -90,7 +90,7 @@ export default function TweetCard({ tweet, index, date, isTweeted, onMarkTweeted
                                     {sourceAge}
                                 </span>
                                 <div className="absolute bottom-full left-0 mb-2 px-3 py-1.5 bg-slate-900 border border-slate-700 text-xs text-slate-200 rounded shadow-xl opacity-0 group-hover:opacity-100 transition-all whitespace-nowrap pointer-events-none z-20">
-                                    Source: {sourceAge} ago
+                                    Source: {sourceAge}
                                 </div>
                             </div>
                         )}
@@ -144,16 +144,18 @@ export default function TweetCard({ tweet, index, date, isTweeted, onMarkTweeted
                     </div>
 
                     <button
+                        disabled={markDisabled}
                         onClick={() => onMarkTweeted?.(date, index)}
-                        className={`px-4 py-1.5 rounded-full text-xs font-bold tracking-wide transition-all bg-opacity-90 hover:bg-opacity-100 ${isTweeted
+                        className={`px-4 py-1.5 rounded-full text-xs font-bold tracking-wide transition-all bg-opacity-90 hover:bg-opacity-100 disabled:opacity-40 disabled:cursor-not-allowed ${isTweeted
                             ? "bg-slate-800 text-slate-500 hover:bg-slate-700"
                             : "bg-blue-600 text-white shadow-lg shadow-blue-500/20"
                             }`}
                     >
-                        {isTweeted ? "UNDO" : "MARK DONE"}
+                        {markDisabled ? "READ ONLY" : isTweeted ? "UNDO" : "MARK DONE"}
                     </button>
                 </div>
             </div>
         </div>
     );
 }
+

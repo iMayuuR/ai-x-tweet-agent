@@ -11,20 +11,27 @@ export const dynamic = "force-dynamic";
 export async function POST(request) {
     try {
         const body = await request.json();
-        const { date, index } = body;
+        const { date } = body;
+        const index = Number(body?.index);
 
-        if (!date || typeof index !== "number") {
+        if (!date || !Number.isInteger(index) || index < 0) {
             return NextResponse.json(
                 { error: "Missing date or index" },
                 { status: 400 }
             );
         }
 
-        const tweetedStatus = await markTweeted(date, index);
+        const result = await markTweeted(date, index);
+        if (!result.ok) {
+            return NextResponse.json(
+                { success: false, error: result.error || "Failed to update tweet status" },
+                { status: 400 }
+            );
+        }
 
         return NextResponse.json({
             success: true,
-            tweetedStatus,
+            tweetedStatus: result.posted,
         });
     } catch (error) {
         console.error("Failed to mark tweet:", error);

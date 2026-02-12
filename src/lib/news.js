@@ -14,7 +14,6 @@ function getTimeAgo(timestamp) {
 }
 
 const TOOL_SIGNAL_KEYWORDS = [
-    "ai",
     "tool",
     "agent",
     "assistant",
@@ -47,6 +46,20 @@ const TOOL_SIGNAL_KEYWORDS = [
     "stable diffusion",
 ];
 
+const AI_CONTEXT_KEYWORDS = [
+    "ai",
+    "genai",
+    "llm",
+    "gpt",
+    "chatgpt",
+    "claude",
+    "gemini",
+    "copilot",
+    "chatbot",
+    "rag",
+    "diffusion",
+];
+
 const TOOL_ACTIVITY_KEYWORDS = [
     "launch",
     "launched",
@@ -63,6 +76,47 @@ const TOOL_ACTIVITY_KEYWORDS = [
     "feature",
     "upgrade",
     "show hn",
+    "changelog",
+    "integration",
+    "plugin",
+    "template",
+    "open source",
+];
+
+const TOOL_UTILITY_KEYWORDS = [
+    "builder",
+    "creator",
+    "automation",
+    "workflow",
+    "extension",
+    "plugin",
+    "assistant",
+    "agent",
+    "app",
+    "sdk",
+    "api",
+    "repo",
+];
+
+const KNOWN_TOOL_BRANDS = [
+    "chatgpt",
+    "openai",
+    "claude",
+    "anthropic",
+    "gemini",
+    "google ai",
+    "cursor",
+    "perplexity",
+    "midjourney",
+    "runway",
+    "suno",
+    "elevenlabs",
+    "copilot",
+    "hugging face",
+    "stability ai",
+    "vercel ai",
+    "bolt",
+    "replit",
 ];
 
 const NEWSY_EXCLUSION_KEYWORDS = [
@@ -86,16 +140,22 @@ const NEWSY_EXCLUSION_KEYWORDS = [
 const COMMUNITY_RSS_SOURCES = [
     { source: "Medium-AITools", url: "https://medium.com/feed/tag/ai-tools", limit: 14 },
     { source: "Medium-GenAI", url: "https://medium.com/feed/tag/generative-ai", limit: 14 },
+    { source: "Medium-AIAgents", url: "https://medium.com/feed/tag/ai-agents", limit: 12 },
+    { source: "Medium-LLM", url: "https://medium.com/feed/tag/llm", limit: 12 },
     { source: "Devto-AI", url: "https://dev.to/feed/tag/ai", limit: 14 },
+    { source: "Devto-ML", url: "https://dev.to/feed/tag/machine-learning", limit: 12 },
     { source: "Reddit-ChatGPT", url: "https://www.reddit.com/r/ChatGPT/.rss", limit: 18 },
     { source: "Reddit-AI", url: "https://www.reddit.com/r/ArtificialInteligence/.rss", limit: 18 },
-    { source: "TechCrunch-AI", url: "https://techcrunch.com/tag/artificial-intelligence/feed/", limit: 12 },
-    { source: "TheVerge-AI", url: "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml", limit: 12 },
+    { source: "Reddit-LocalLLaMA", url: "https://www.reddit.com/r/LocalLLaMA/.rss", limit: 16 },
+    { source: "Reddit-StableDiffusion", url: "https://www.reddit.com/r/StableDiffusion/.rss", limit: 16 },
     { source: "TowardsDataScience", url: "https://towardsdatascience.com/feed", limit: 12 },
     { source: "AnalyticsVidhya", url: "https://www.analyticsvidhya.com/blog/feed/", limit: 12 },
+    { source: "OpenAI-News", url: "https://openai.com/news/rss.xml", limit: 10 },
+    { source: "GoogleAI-Blog", url: "https://blog.google/technology/ai/rss/", limit: 10 },
+    { source: "Anthropic-News", url: "https://www.anthropic.com/news/rss.xml", limit: 10 },
 ];
 
-function isToolSignalTitle(title) {
+function isToolSignalTitle(title, source = "") {
     const normalized = (title || "").toLowerCase();
     if (!normalized) return false;
 
@@ -103,10 +163,41 @@ function isToolSignalTitle(title) {
         return false;
     }
 
-    const hasToolKeyword = TOOL_SIGNAL_KEYWORDS.some((keyword) => normalized.includes(keyword));
-    const hasActivityKeyword = TOOL_ACTIVITY_KEYWORDS.some((keyword) => normalized.includes(keyword));
+    const containsKeyword = (keyword) => {
+        if (!keyword) return false;
+        if (keyword.length <= 3 || keyword === "ai") {
+            return new RegExp(`\\b${keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(normalized);
+        }
+        return normalized.includes(keyword);
+    };
 
-    return hasToolKeyword || hasActivityKeyword;
+    const hasKnownBrand = KNOWN_TOOL_BRANDS.some(containsKeyword);
+    const hasAiContext = AI_CONTEXT_KEYWORDS.some(containsKeyword);
+    const hasToolKeyword = TOOL_SIGNAL_KEYWORDS.some(containsKeyword);
+    const hasActivityKeyword = TOOL_ACTIVITY_KEYWORDS.some(containsKeyword);
+    const hasUtilityKeyword = TOOL_UTILITY_KEYWORDS.some(containsKeyword);
+    const sourceNormalized = (source || "").toLowerCase();
+    const toolHeavySource = /producthunt|github|hackernews|devto|medium|reddit|towards|analytics|openai|googleai|anthropic/.test(
+        sourceNormalized
+    );
+
+    if (!hasAiContext && !hasKnownBrand) {
+        return false;
+    }
+
+    if (hasKnownBrand && (hasActivityKeyword || hasToolKeyword || hasUtilityKeyword || hasAiContext)) {
+        return true;
+    }
+
+    if (hasToolKeyword && (hasActivityKeyword || hasUtilityKeyword)) {
+        return true;
+    }
+
+    if (toolHeavySource && hasActivityKeyword && hasAiContext) {
+        return true;
+    }
+
+    return false;
 }
 
 function sanitizeFeedText(value = "") {
@@ -227,7 +318,7 @@ async function fetchGitHubAITools(limit = 20) {
         const sinceDate = new Date(Date.now() - 24 * 60 * 60 * 1000)
             .toISOString()
             .slice(0, 10);
-        const query = encodeURIComponent(`topic:ai pushed:>=${sinceDate}`);
+        const query = encodeURIComponent(`topic:ai pushed:>=${sinceDate} stars:>=8 archived:false`);
         const url = `https://api.github.com/search/repositories?q=${query}&sort=updated&order=desc&per_page=${limit}`;
 
         const response = await fetch(url, {
@@ -372,18 +463,24 @@ function dedupeByTitleAndUrl(items = []) {
 
 function diversifyBySource(items = []) {
     const caps = {
-        GitHub: 10,
+        GitHub: 7,
         HackerNews: 8,
-        ProductHunt: 10,
-        "TechCrunch-AI": 6,
-        "TheVerge-AI": 6,
+        ProductHunt: 12,
         "Devto-AI": 8,
+        "Devto-ML": 7,
         "Medium-AITools": 7,
         "Medium-GenAI": 7,
+        "Medium-AIAgents": 7,
+        "Medium-LLM": 6,
         "Reddit-AI": 7,
         "Reddit-ChatGPT": 7,
+        "Reddit-LocalLLaMA": 7,
+        "Reddit-StableDiffusion": 7,
         TowardsDataScience: 6,
         AnalyticsVidhya: 6,
+        "OpenAI-News": 6,
+        "GoogleAI-Blog": 6,
+        "Anthropic-News": 6,
         GoogleNewsFallback: 8,
     };
 
@@ -402,6 +499,36 @@ function diversifyBySource(items = []) {
     return picked;
 }
 
+function prioritizeSources(items = []) {
+    const sourceWeight = {
+        ProductHunt: 100,
+        GitHub: 84,
+        HackerNews: 92,
+        "Reddit-LocalLLaMA": 88,
+        "Reddit-ChatGPT": 86,
+        "Reddit-StableDiffusion": 86,
+        "Reddit-AI": 82,
+        "Medium-AITools": 84,
+        "Medium-AIAgents": 84,
+        "Medium-LLM": 82,
+        "Medium-GenAI": 80,
+        "Devto-AI": 80,
+        "Devto-ML": 78,
+        "OpenAI-News": 72,
+        "GoogleAI-Blog": 72,
+        "Anthropic-News": 72,
+        TowardsDataScience: 68,
+        AnalyticsVidhya: 66,
+        GoogleNewsFallback: 40,
+    };
+
+    return [...items].sort((a, b) => {
+        const weightDiff = (sourceWeight[b.source] || 50) - (sourceWeight[a.source] || 50);
+        if (weightDiff !== 0) return weightDiff;
+        return (b.timestamp || 0) - (a.timestamp || 0);
+    });
+}
+
 /**
  * Return 24h AI tool launches/updates focused feed.
  */
@@ -416,24 +543,23 @@ export async function getTrendingNews() {
     const now = Date.now() / 1000;
     const primary = [...productHunt, ...hackerNews, ...githubSignals, ...communitySignals]
         .filter((item) => now - item.timestamp <= 86400)
-        .filter((item) => isToolSignalTitle(item.title))
+        .filter((item) => isToolSignalTitle(item.title, item.source))
         .sort((a, b) => b.timestamp - a.timestamp);
 
     let combined = dedupeByTitleAndUrl(primary);
 
-    if (combined.length < 26) {
-        const googleFallback = await fetchGoogleNewsFallback(24);
+    if (combined.length < 20) {
+        const googleFallback = await fetchGoogleNewsFallback(10);
         const fallbackFresh = googleFallback
             .filter((item) => now - item.timestamp <= 86400)
-            .filter((item) => isToolSignalTitle(item.title));
+            .filter((item) => isToolSignalTitle(item.title, item.source));
 
-        combined = dedupeByTitleAndUrl([...combined, ...fallbackFresh]).sort(
-            (a, b) => b.timestamp - a.timestamp
-        );
+        combined = dedupeByTitleAndUrl([...combined, ...fallbackFresh]).sort((a, b) => b.timestamp - a.timestamp);
     }
 
     if (combined.length > 0) {
-        const diversified = diversifyBySource(combined);
+        const prioritized = prioritizeSources(combined);
+        const diversified = diversifyBySource(prioritized);
         return diversified.slice(0, 50);
     }
 

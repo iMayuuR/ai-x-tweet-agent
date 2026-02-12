@@ -1,4 +1,4 @@
-import { getLastDaysTweets } from "./cache";
+import { getLastDaysTweets, getRecentRunTweets } from "./cache";
 import { getTrendingNews } from "./news";
 
 const MODEL_NAME = process.env.GEMINI_MODEL || "gemini-2.5-flash";
@@ -6,11 +6,12 @@ const MODEL_NAME = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 const TARGET_TWEETS = 10;
 const MIN_TWEET_LENGTH = 270;
 const MAX_TWEET_LENGTH = 275;
+const TARGET_TWEET_LENGTH = 272;
 const MIN_HASHTAGS = 1;
 const MAX_HASHTAGS = 2;
 const MAX_MODEL_ATTEMPTS = 4;
 const HISTORY_TWEET_LIMIT = 30;
-const DUPLICATE_JACCARD_THRESHOLD = 0.62;
+const DUPLICATE_JACCARD_THRESHOLD = 0.56;
 
 const DEFAULT_HASHTAGS = ["#AITools", "#AIBuilders", "#GenAI"];
 const EXPERT_HOOK_WORDS = ["INSIGHT", "SPOTLIGHT", "HOTDROP", "BREAKOUT", "POWERMOVE"];
@@ -19,6 +20,13 @@ const LENGTH_FILLERS = [
     "Worth testing if you build with AI daily.",
     "Great fit for founders, devs, and marketers.",
     "This workflow saves serious time in real projects.",
+];
+
+const MICRO_FILLERS = [
+    "Practical edge for daily AI builders.",
+    "Fast setup and immediate output quality.",
+    "Easy to test and deploy in real workflows.",
+    "Strong momentum from early power users.",
 ];
 
 const ENGAGEMENT_LINES = [
@@ -53,6 +61,10 @@ const NEWSY_PATTERNS = [
     /\bannounced?\b/i,
 ];
 
+const ONE_WORD_PREFIX_RE = /^[A-Z][A-Z0-9]{2,16}:/;
+const URL_RE = /https?:\/\/\S+|www\.\S+/i;
+const EMOJI_RE = /[\u{1F300}-\u{1FAFF}\u2600-\u27BF]/u;
+
 const TOOL_LIBRARY = [
     { name: "ChatGPT", handle: "@OpenAI", link: "https://chatgpt.com", audience: "founders and PMs", useCase: "draft product specs and user stories in minutes", capability: "turn rough notes into clean drafts and action plans" },
     { name: "Claude", handle: "@AnthropicAI", link: "https://claude.ai", audience: "writers and researchers", useCase: "summarize long docs with high context retention", capability: "reason through long inputs with structured output" },
@@ -82,14 +94,18 @@ Voice:
 Hard rules:
 1) Return exactly ${TARGET_TWEETS} tweets in JSON.
 2) Every tweet MUST be ${MIN_TWEET_LENGTH}-${MAX_TWEET_LENGTH} characters.
-3) Focus on AI tools and AI workflows only. No market/news narration.
-4) Never use phrasing like breaking, headline, reported, according to, press release, news.
-5) Each tweet must mention what the tool does + who should use it + one real use-case.
-6) Add tool website link when available.
-7) Tag official handle when the tool/company is known.
-8) Use emojis naturally.
-9) Include ${MIN_HASHTAGS}-${MAX_HASHTAGS} hashtags in each tweet. Do not overstuff hashtags.
-10) Every tweet must be unique and start differently.
+3) Target ${TARGET_TWEET_LENGTH}-${MAX_TWEET_LENGTH} chars whenever possible.
+4) Start every tweet with exactly one uppercase word + colon (example: INSIGHT: ...).
+5) Focus on AI tools and AI workflows only. No market/news narration.
+6) Every tweet must feel like a practical mini-article compressed for X.
+7) Each tweet must mention what the tool does + who should use it + one real use-case.
+8) Add tool website link when available.
+9) Tag official handle when the tool/company is known.
+10) Use emojis naturally.
+11) Include ${MIN_HASHTAGS}-${MAX_HASHTAGS} hashtags in each tweet. Do not overstuff hashtags.
+12) Every tweet must be unique and start differently.
+13) Never output placeholders, incomplete lines, or unfinished sentences.
+14) Never use phrasing like breaking, headline, reported, according to, press release, news.
 
 Official handles:
 OpenAI=@OpenAI, Google/Gemini=@GoogleAI, Anthropic/Claude=@AnthropicAI, Meta AI=@MetaAI,
@@ -159,7 +175,7 @@ function cleanSignalTitle(title = "") {
 
 function buildToolSignalContext(items = []) {
     if (!items.length) {
-        return `No strong live signals fetched. Use 24h tool activity from: ${TOOL_FALLBACK_CONTEXT}.`;
+        return `24h tool signals unavailable. Prioritize practical tools from: ${TOOL_FALLBACK_CONTEXT}.`;
     }
 
     return items
@@ -168,7 +184,7 @@ function buildToolSignalContext(items = []) {
             const title = cleanSignalTitle(item?.title || "Untitled AI tool signal");
             const timeAgo = item?.timeAgo || "fresh";
             const url = item?.url || "";
-            return `${index + 1}. 24h tool signal: ${title}${url ? ` | Link: ${url}` : ""} | Age: ${timeAgo}`;
+            return `${index + 1}. Tool: ${title}${url ? ` | URL: ${url}` : ""} | Freshness: ${timeAgo}`;
         })
         .join("\n");
 }
@@ -210,6 +226,19 @@ function parseTweetsFromContent(content) {
 function countHashtags(text) {
     const tags = text.match(/#[a-z0-9_]+/gi);
     return tags ? tags.length : 0;
+}
+
+function countMentions(text) {
+    const mentions = text.match(/@[a-z0-9_]+/gi);
+    return mentions ? mentions.length : 0;
+}
+
+function hasEmoji(text) {
+    return EMOJI_RE.test(text || "");
+}
+
+function hasUrl(text) {
+    return URL_RE.test(text || "");
 }
 
 function isNewsy(text) {
@@ -275,7 +304,50 @@ function trimToMaxLength(text, max = MAX_TWEET_LENGTH) {
     return smart.slice(0, max).trim();
 }
 
-function ensureHashtagRange(text) {
+function ensureOneWordPrefix(text, seed = 0) {
+    let output = (text || "").trim();
+
+    output = output.replace(/^[^\w@#]+/u, "").trim();
+    output = output.replace(/^[A-Za-z][A-Za-z0-9_-]{1,24}\s+AI\s+tool\s+find:\s*/i, "").trim();
+    output = output.replace(/^[A-Za-z][A-Za-z0-9_-]{1,24}:\s*/i, "").trim();
+
+    const prefix = pick(EXPERT_HOOK_WORDS, seed).replace(/[^A-Z0-9]/gi, "") || "INSIGHT";
+    return `${prefix}: ${output}`.replace(/\s+/g, " ").trim();
+}
+
+function ensureEmoji(text, seed = 0) {
+    let output = (text || "").trim();
+    if (hasEmoji(output)) return output;
+
+    const emoji = pick(
+        ["\uD83D\uDE80", "\uD83D\uDD25", "\u26A1", "\uD83E\uDDE0", "\uD83D\uDEE0\uFE0F", "\u2728", "\uD83C\uDFAF"],
+        seed
+    ) || "\uD83D\uDE80";
+    if (ONE_WORD_PREFIX_RE.test(output)) {
+        output = output.replace(/^([A-Z][A-Z0-9]{2,16}:\s*)/, `$1${emoji} `);
+        return output.trim();
+    }
+
+    return `${emoji} ${output}`.trim();
+}
+
+function ensureLinkAndMention(text, seed = 0) {
+    let output = (text || "").trim();
+    const fallbackTool = TOOL_LIBRARY[seed % TOOL_LIBRARY.length] || TOOL_LIBRARY[0];
+
+    if (!hasUrl(output)) {
+        output = `${output} Link: ${fallbackTool.link}`.replace(/\s+/g, " ").trim();
+    }
+
+    if (countMentions(output) < 1) {
+        const mention = fallbackTool.handle || "@OpenAI";
+        output = `${output} ${mention}`.replace(/\s+/g, " ").trim();
+    }
+
+    return output;
+}
+
+function ensureHashtagRange(text, seed = 0) {
     let output = text.trim();
     const tags = output.match(/#[a-z0-9_]+/gi) || [];
 
@@ -289,7 +361,7 @@ function ensureHashtagRange(text) {
     let tagIndex = 0;
 
     while (current < MIN_HASHTAGS && tagIndex < DEFAULT_HASHTAGS.length) {
-        const tag = DEFAULT_HASHTAGS[tagIndex];
+        const tag = pick(DEFAULT_HASHTAGS, seed + tagIndex) || DEFAULT_HASHTAGS[tagIndex];
         if (!new RegExp(`\\${tag}\\b`, "i").test(output)) {
             const withTag = `${output} ${tag}`.trim();
             output = trimToMaxLength(withTag);
@@ -308,52 +380,110 @@ function ensureHashtagRange(text) {
     return output.trim();
 }
 
-function padToMinimumLength(text) {
+function padToMinimumLength(text, seed = 0) {
     let output = text.trim();
     if (output.length >= MIN_TWEET_LENGTH) return output;
 
-    for (const filler of LENGTH_FILLERS) {
-        if (output.length >= MIN_TWEET_LENGTH) break;
-        const candidate = `${output} ${filler}`.replace(/\s+/g, " ").trim();
-        output = candidate.length <= MAX_TWEET_LENGTH ? candidate : trimToMaxLength(candidate);
+    const fillers = [...LENGTH_FILLERS, ...ENGAGEMENT_LINES, ...MICRO_FILLERS];
+    for (let i = 0; i < fillers.length * 2 && output.length < MIN_TWEET_LENGTH; i += 1) {
+        const filler = pick(fillers, seed + i);
+        if (!filler) continue;
+        const room = MAX_TWEET_LENGTH - output.length - 1;
+        if (room <= 0) break;
+        const add = filler.slice(0, room).trim();
+        if (!add) continue;
+        output = `${output} ${add}`.replace(/\s+/g, " ").trim();
     }
 
     if (output.length < MIN_TWEET_LENGTH) {
-        const room = MAX_TWEET_LENGTH - output.length;
+        const room = MAX_TWEET_LENGTH - output.length - 1;
         if (room > 0) {
-            output = `${output}${" AI tools explorer mode on".slice(0, room)}`.trim();
+            const add = "Practical wins for creators shipping daily."
+                .slice(0, room)
+                .trim();
+            output = `${output} ${add}`.replace(/\s+/g, " ").trim();
         }
     }
 
     return output;
 }
 
-function hardenTweetText(text) {
+function padTowardTargetLength(text, seed = 0) {
+    let output = text.trim();
+    if (output.length >= TARGET_TWEET_LENGTH) return output;
+
+    for (let i = 0; i < MICRO_FILLERS.length * 2 && output.length < TARGET_TWEET_LENGTH; i += 1) {
+        const filler = pick(MICRO_FILLERS, seed + i);
+        if (!filler) continue;
+        const room = MAX_TWEET_LENGTH - output.length - 1;
+        if (room <= 0) break;
+        const add = filler.slice(0, room).trim();
+        if (!add) continue;
+        output = `${output} ${add}`.replace(/\s+/g, " ").trim();
+    }
+
+    return output;
+}
+
+function ensureSentenceEnding(text) {
+    let output = text.trim();
+    if (!output) return output;
+
+    if (/[.!?]$/.test(output)) return output;
+    if (/#[a-z0-9_]+$/i.test(output)) return output;
+    if (/(https?:\/\/\S+|www\.\S+)$/i.test(output)) return output;
+
+    if (output.length < MAX_TWEET_LENGTH) {
+        output = `${output}.`;
+    }
+
+    return output;
+}
+
+function hardenTweetText(text, seed = 0) {
     let output = (typeof text === "string" ? text : "").replace(/\s+/g, " ").trim();
     output = output.replace(/\b(breaking|headline|reported?|according to|press release|news)\b/gi, "");
     output = output.replace(/\s+/g, " ").trim();
 
-    output = ensureHashtagRange(output);
-    output = padToMinimumLength(output);
-    output = ensureHashtagRange(output);
+    output = ensureOneWordPrefix(output, seed);
+    output = ensureLinkAndMention(output, seed + 1);
+    output = ensureEmoji(output, seed + 2);
+    output = ensureHashtagRange(output, seed + 3);
+    output = padTowardTargetLength(output, seed + 4);
+    output = padToMinimumLength(output, seed + 5);
+    output = ensureSentenceEnding(output);
     output = trimToMaxLength(output);
+    output = ensureHashtagRange(output, seed + 6);
 
     if (output.length < MIN_TWEET_LENGTH) {
-        output = padToMinimumLength(output);
+        output = padTowardTargetLength(output, seed + 7);
+        output = padToMinimumLength(output, seed + 8);
         output = trimToMaxLength(output);
     }
 
     if (countHashtags(output) < MIN_HASHTAGS) {
-        output = ensureHashtagRange(output);
+        output = ensureHashtagRange(output, seed + 9);
     }
 
-    while (output.length < MIN_TWEET_LENGTH) {
-        const room = MAX_TWEET_LENGTH - output.length;
+    if (output.length < MIN_TWEET_LENGTH) {
+        const room = MAX_TWEET_LENGTH - output.length - 1;
+        if (room > 0) {
+            const add = "high utility for daily workflows".slice(0, room).trim();
+            output = `${output} ${add}`.replace(/\s+/g, " ").trim();
+        }
+    }
+
+    for (let i = 0; i < 8 && output.length < MIN_TWEET_LENGTH; i += 1) {
+        const filler = pick([...MICRO_FILLERS, ...LENGTH_FILLERS], seed + 20 + i);
+        if (!filler) break;
+        const room = MAX_TWEET_LENGTH - output.length - 1;
         if (room <= 0) break;
-        output = `${output}${room >= 2 ? " +" : "+"}`.trim();
+        const add = filler.slice(0, room).trim();
+        if (!add) break;
+        output = `${output} ${add}`.replace(/\s+/g, " ").trim();
     }
 
-    return output.trim();
+    return trimToMaxLength(output).trim();
 }
 
 function validateTweetText(text) {
@@ -370,6 +500,10 @@ function validateTweetText(text) {
     if (length < MIN_TWEET_LENGTH) issues.push(`too short (${length})`);
     if (length > MAX_TWEET_LENGTH) issues.push(`too long (${length})`);
     if (isNewsy(value)) issues.push("newsy framing");
+    if (!ONE_WORD_PREFIX_RE.test(value)) issues.push("missing one-word prefix");
+    if (!hasUrl(value)) issues.push("missing link");
+    if (countMentions(value) < 1) issues.push("missing account tag");
+    if (!hasEmoji(value)) issues.push("missing emoji");
     if (hashtags < MIN_HASHTAGS) issues.push(`missing hashtags (${hashtags})`);
     if (hashtags > MAX_HASHTAGS) issues.push(`too many hashtags (${hashtags})`);
 
@@ -377,10 +511,10 @@ function validateTweetText(text) {
 }
 
 function normalizeTweets(rawTweets = []) {
-    return rawTweets.slice(0, TARGET_TWEETS).map((tweet) => {
+    return rawTweets.slice(0, TARGET_TWEETS).map((tweet, index) => {
         const base = typeof tweet === "string" ? tweet : tweet?.text || "";
         return {
-            text: hardenTweetText(base),
+            text: hardenTweetText(base, index),
             sourceAge: typeof tweet === "object" ? tweet?.sourceAge || "Fresh" : "Fresh",
         };
     });
@@ -490,7 +624,7 @@ function buildFallbackTweet(tool, index, entropy = 0) {
     const hype = pick(ENGAGEMENT_LINES, index + entropy);
     const linkLine = `Try: ${tool.link}`;
 
-    return hardenTweetText(`${intro} ${body} ${proof} ${hype} ${linkLine} ${hashtags}`);
+    return hardenTweetText(`${intro} ${body} ${proof} ${hype} ${linkLine} ${hashtags}`, index + entropy);
 }
 
 function buildLocalBackupTweets({ blockedTweets = [], existing = [], signals = [], nowIso = "" }) {
@@ -532,7 +666,7 @@ function ensureExactTenTweets({ candidateTweets = [], blockedTweets = [], signal
     const tryAdd = (tweet) => {
         if (!tweet) return;
         const baseText = typeof tweet === "string" ? tweet : tweet.text;
-        const text = hardenTweetText(baseText);
+        const text = hardenTweetText(baseText, accepted.length + historical.length);
         const issues = validateTweetText(text);
         const duplicateWithAccepted = accepted.some((item) => isNearDuplicate(item.text, text));
         const duplicateWithHistory = historical.some((item) => isNearDuplicate(item, text));
@@ -564,7 +698,8 @@ function ensureExactTenTweets({ candidateTweets = [], blockedTweets = [], signal
         for (let i = 0; i < 100 && accepted.length < TARGET_TWEETS; i += 1) {
             const tool = TOOL_LIBRARY[(i + nonce.length) % TOOL_LIBRARY.length];
             const text = hardenTweetText(
-                `${pick(EXPERT_HOOK_WORDS, i)} ${tool.name}${tool.handle ? ` ${tool.handle}` : ""} is delivering strong creator momentum right now with practical wins for ${tool.audience}. Real use-case: ${tool.useCase}. Core edge: ${tool.capability}. Link: ${tool.link} ${DEFAULT_HASHTAGS[0]} ${pick(DEFAULT_HASHTAGS, i + 1)}`
+                `${pick(EXPERT_HOOK_WORDS, i)} ${tool.name}${tool.handle ? ` ${tool.handle}` : ""} is delivering strong creator momentum right now with practical wins for ${tool.audience}. Real use-case: ${tool.useCase}. Core edge: ${tool.capability}. Link: ${tool.link} ${DEFAULT_HASHTAGS[0]} ${pick(DEFAULT_HASHTAGS, i + 1)}`,
+                i + nonce.length
             );
             const duplicateWithAccepted = accepted.some((item) => isNearDuplicate(item.text, text));
             if (!duplicateWithAccepted && !validateTweetText(text).length) {
@@ -580,7 +715,8 @@ function ensureExactTenTweets({ candidateTweets = [], blockedTweets = [], signal
         const index = accepted.length;
         const tool = TOOL_LIBRARY[index % TOOL_LIBRARY.length];
         const text = hardenTweetText(
-            `${pick(EXPERT_HOOK_WORDS, index)} ${tool.name}${tool.handle ? ` ${tool.handle}` : ""} gives builders a practical speed boost. Best use-case: ${tool.useCase}. Why it hits: ${tool.capability}. Try it now: ${tool.link} ${DEFAULT_HASHTAGS[0]}`
+            `${pick(EXPERT_HOOK_WORDS, index)} ${tool.name}${tool.handle ? ` ${tool.handle}` : ""} gives builders a practical speed boost. Best use-case: ${tool.useCase}. Why it hits: ${tool.capability}. Try it now: ${tool.link} ${DEFAULT_HASHTAGS[0]}`,
+            index + 200
         );
         accepted.push({
             text,
@@ -609,9 +745,12 @@ async function requestTweets({
         "",
         "Task:",
         `Generate ${TARGET_TWEETS} tweets for @AIToolsExplorer.`,
-        `Each tweet must be ${MIN_TWEET_LENGTH}-${MAX_TWEET_LENGTH} chars.`,
+        `Each tweet must be ${MIN_TWEET_LENGTH}-${MAX_TWEET_LENGTH} chars (target ${TARGET_TWEET_LENGTH}-${MAX_TWEET_LENGTH}).`,
+        "Every tweet must start with one word prefix + colon (example: INSIGHT: ...).",
         "Do not sound like a journalist or news reporter.",
-        "Tweets must be practical AI tool discoveries with links and emojis.",
+        "Tweets must be practical AI tool discoveries with links, hashtags, account tags, and emojis.",
+        "Use only last-24h AI tool launches/updates from the provided signals.",
+        "No incomplete sentence endings and no generic filler output.",
         retryFeedback ? `Fix these issues from previous attempt:\n${retryFeedback}` : "",
         "",
         "Return JSON only.",
@@ -681,7 +820,7 @@ export async function generateTweets(options = {}) {
     const nowIso = new Date().toISOString();
 
     let signals = [];
-    let toolSignalContext = `Fallback 24h AI tool pool: ${TOOL_FALLBACK_CONTEXT}.`;
+    let toolSignalContext = `24h AI tool pool fallback: ${TOOL_FALLBACK_CONTEXT}.`;
     try {
         signals = await getTrendingNews();
         toolSignalContext = buildToolSignalContext(signals);
@@ -693,8 +832,11 @@ export async function generateTweets(options = {}) {
     let historyPrompt = "";
     let blockedTweets = [...avoidTweets];
     try {
-        const previousTweets = await getLastDaysTweets(3);
-        blockedTweets = dedupeTexts([...avoidTweets, ...previousTweets]);
+        const [previousTweets, runTweets] = await Promise.all([
+            getLastDaysTweets(3),
+            getRecentRunTweets(24, 180),
+        ]);
+        blockedTweets = dedupeTexts([...avoidTweets, ...runTweets, ...previousTweets]);
         historyPrompt = buildHistoryPrompt(blockedTweets, HISTORY_TWEET_LIMIT);
     } catch (error) {
         console.error("History fetch failed:", error);
@@ -742,3 +884,4 @@ export async function generateTweets(options = {}) {
         nowIso,
     });
 }
+

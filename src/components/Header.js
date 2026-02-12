@@ -2,7 +2,16 @@
 
 import { useMemo } from "react";
 
-export default function Header({ date, onLogout, historyDates = [], onDateSelect, selectedDate }) {
+export default function Header({
+    date,
+    onLogout,
+    historyDates = [],
+    onDateSelect,
+    selectedDate,
+    savedRuns = [],
+    selectedRunId,
+    onRunSelect,
+}) {
     const formattedDate = useMemo(() => {
         const d = date ? new Date(date + "T00:00:00") : new Date();
         return d.toLocaleDateString("en-US", {
@@ -12,6 +21,15 @@ export default function Header({ date, onLogout, historyDates = [], onDateSelect
             day: "numeric",
         });
     }, [date]);
+
+    const formatRunLabel = (run) => {
+        const generated = run?.generatedAt ? new Date(run.generatedAt) : null;
+        const timeLabel = generated
+            ? generated.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })
+            : "Saved";
+        const count = run?.count || 10;
+        return `${timeLabel} - ${count}`;
+    };
 
     return (
         <header className="header fade-in">
@@ -44,15 +62,45 @@ export default function Header({ date, onLogout, historyDates = [], onDateSelect
                     </div>
                 )}
 
-                {onLogout && (
-                    <button className="btn btn-logout" onClick={onLogout} aria-label="Logout">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                            <polyline points="16 17 21 12 16 7" />
-                            <line x1="21" y1="12" x2="9" y2="12" />
-                        </svg>
-                    </button>
-                )}
+                <div className="header-actions">
+                    {savedRuns.length > 0 && (
+                        <div className="history-selector-wrapper saved-runs-wrapper">
+                            <select
+                                className="history-select"
+                                value={selectedRunId || ""}
+                                onChange={(e) => onRunSelect?.(e.target.value || "")}
+                            >
+                                <option value="">Saved (24h)</option>
+                                {savedRuns.map((run) => (
+                                    <option key={run.id} value={run.id}>
+                                        {formatRunLabel(run)}
+                                    </option>
+                                ))}
+                            </select>
+                            <svg
+                                className="select-icon"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                            >
+                                <polyline points="6 9 12 15 18 9" />
+                            </svg>
+                        </div>
+                    )}
+
+                    {onLogout && (
+                        <button className="btn btn-logout" onClick={onLogout} aria-label="Logout">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                                <polyline points="16 17 21 12 16 7" />
+                                <line x1="21" y1="12" x2="9" y2="12" />
+                            </svg>
+                        </button>
+                    )}
+                </div>
             </div>
 
             <div className="header-badge">

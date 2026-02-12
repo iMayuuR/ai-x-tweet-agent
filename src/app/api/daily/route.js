@@ -30,7 +30,7 @@ export async function GET(request) {
             });
         }
 
-        // No cache — return empty (user must click Generate)
+        // No cache - return empty (user must click Generate)
         return NextResponse.json({
             success: true,
             data: null,

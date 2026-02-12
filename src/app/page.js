@@ -17,6 +17,8 @@ export default function Home() {
   // History state
   const [historyDates, setHistoryDates] = useState([]);
   const [selectedHistoryDate, setSelectedHistoryDate] = useState(null);
+  const [savedRuns, setSavedRuns] = useState([]);
+  const [selectedRunId, setSelectedRunId] = useState("");
 
   // Load available history dates
   async function fetchHistoryDates() {
@@ -28,6 +30,18 @@ export default function Home() {
       }
     } catch (e) {
       console.error("Failed to fetch history dates", e);
+    }
+  }
+
+  async function fetchSavedRuns() {
+    try {
+      const res = await fetch("/api/runs?list=true");
+      const json = await res.json();
+      if (json.success) {
+        setSavedRuns(json.data || []);
+      }
+    } catch (e) {
+      console.error("Failed to fetch saved runs", e);
     }
   }
 
@@ -74,8 +88,45 @@ export default function Home() {
 
   // Handle date selection from header
   function handleDateSelect(newDate) {
+    setSelectedRunId("");
     setSelectedHistoryDate(newDate); // newDate is YYYY-MM-DD or null
     fetchCached(newDate);
+  }
+
+  async function handleRunSelect(runId) {
+    setSelectedRunId(runId || "");
+    if (!runId) {
+      fetchCached(selectedHistoryDate || null);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/runs?id=${encodeURIComponent(runId)}`);
+      const json = await res.json();
+
+      if (!res.ok || !json.success || !json.data) {
+        throw new Error(json.error || "Failed to load saved run");
+      }
+
+      const run = json.data;
+      const tweetItems = run.tweets || [];
+      setTweets(tweetItems);
+      setTweetedStatus(
+        Array.isArray(tweetItems)
+          ? tweetItems.map((t) => Boolean(typeof t === "object" && t?.posted))
+          : []
+      );
+      setDate(run.date || null);
+      setGeneratedAt(run.generatedAt || null);
+      setIsEmpty(false);
+      setSelectedHistoryDate(null);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   }
 
   // Generate new tweets (explicit button press)
@@ -111,9 +162,11 @@ export default function Home() {
       setDate(json.data.date);
       setGeneratedAt(json.data.generatedAt);
       setIsEmpty(false);
+      setSelectedRunId("");
 
       // Refresh history list as today might be new
       fetchHistoryDates();
+      fetchSavedRuns();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -124,9 +177,11 @@ export default function Home() {
   useEffect(() => {
     fetchCached();
     fetchHistoryDates();
+    fetchSavedRuns();
   }, []);
 
   async function handleMarkTweeted(targetDate, index) {
+    if (selectedRunId) return;
     if (!targetDate || typeof index !== "number") return;
 
     const previous = tweetedStatus[index] || false;
@@ -188,6 +243,9 @@ export default function Home() {
         historyDates={historyDates}
         selectedDate={selectedHistoryDate}
         onDateSelect={handleDateSelect}
+        savedRuns={savedRuns}
+        selectedRunId={selectedRunId}
+        onRunSelect={handleRunSelect}
       />
 
       <main className="main-content">
@@ -201,7 +259,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* Empty state — no cached tweets, show Generate button */}
+        {/* Empty state - no cached tweets, show Generate button */}
         {!loading && isEmpty && !generating && !error && (
           <div className="empty-container fade-in">
             <div className="empty-icon">
@@ -311,6 +369,7 @@ export default function Home() {
                   date={date}
                   isTweeted={tweetedStatus[index] || false}
                   onMarkTweeted={handleMarkTweeted}
+                  markDisabled={Boolean(selectedRunId)}
                 />
               ))}
             </div>
