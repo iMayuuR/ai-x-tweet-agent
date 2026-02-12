@@ -65,7 +65,7 @@ const NEWSY_PATTERNS = [
 ];
 
 const ONE_WORD_PREFIX_RE = /^[A-Z][A-Z0-9]{2,16}:/;
-const URL_RE = /https?:\/\/\S+|www\.\S+/gi;
+const URL_RE = /https?:\/\/\S+|www\.\S+/i;
 const EMOJI_RE = /[\u{1F300}-\u{1FAFF}\u2600-\u27BF]/u;
 const EMOJI_GLOBAL_RE = /[\u{1F300}-\u{1FAFF}\u2600-\u27BF]/gu;
 const FRAGMENT_END_RE = /\b(and|or|with|for|to|in|on|at|from|by|of|is|are|was|were|immediate|setup|output|fast|strong|practical|daily|today|now)\b$/i;
@@ -253,14 +253,14 @@ function getCoreTweetLength(text) {
 }
 
 function extractUrls(text) {
-    return (text || "").match(URL_RE) || [];
+    return (text || "").match(/https?:\/\/\S+|www\.\S+/gi) || [];
 }
 
 function getXWeightedLength(text) {
     const value = typeof text === "string" ? text : "";
     if (!value) return 0;
 
-    const matches = [...value.matchAll(URL_RE)];
+    const matches = [...value.matchAll(/https?:\/\/\S+|www\.\S+/gi)];
     if (!matches.length) return Array.from(value).length;
 
     let total = 0;
@@ -867,6 +867,15 @@ function pick(arr, index) {
     return arr[index % arr.length];
 }
 
+function buildEmergencyTweet(tool, seed = 0) {
+    const hashtagA = pick(DEFAULT_HASHTAGS, seed) || DEFAULT_HASHTAGS[0];
+    const hashtagB = pick(DEFAULT_HASHTAGS, seed + 1) || DEFAULT_HASHTAGS[1] || DEFAULT_HASHTAGS[0];
+    const uniqueTags = [hashtagA, hashtagB].filter((tag, idx, arr) => arr.indexOf(tag) === idx).join(" ");
+
+    const base = `${tool.name}${tool.handle ? ` ${tool.handle}` : " @OpenAI"} helps ${tool.audience} with a practical edge: ${tool.capability}. Best use-case: ${tool.useCase}. ${tool.link} ${uniqueTags}`;
+    return hardenTweetText(base, seed + 700);
+}
+
 function buildFallbackTweet(tool, index, entropy = 0) {
     const openers = [
         "\uD83D\uDD25",
@@ -978,7 +987,8 @@ function ensureExactTenTweets({ candidateTweets = [], blockedTweets = [], signal
                 i + nonce.length
             );
             const duplicateWithAccepted = accepted.some((item) => isNearDuplicate(item.text, text));
-            if (!duplicateWithAccepted && !validateTweetText(text).length) {
+            const duplicateWithHistory = historical.some((item) => isNearDuplicate(item, text));
+            if (!duplicateWithAccepted && !duplicateWithHistory && !validateTweetText(text).length) {
                 accepted.push({
                     text,
                     sourceAge: normalizeSourceAge(tool?.sourceAge, ((i + 5) % 12) + 1),
@@ -987,17 +997,53 @@ function ensureExactTenTweets({ candidateTweets = [], blockedTweets = [], signal
         }
     }
 
-    while (accepted.length < TARGET_TWEETS) {
-        const index = accepted.length;
+    let rescueGuard = 0;
+    while (accepted.length < TARGET_TWEETS && rescueGuard < 280) {
+        const index = accepted.length + rescueGuard;
         const tool = TOOL_LIBRARY[index % TOOL_LIBRARY.length];
         const text = hardenTweetText(
             `${tool.name}${tool.handle ? ` ${tool.handle}` : ""} gives builders a practical speed boost. Best use-case: ${tool.useCase}. Why it hits: ${tool.capability}. ${tool.link} ${DEFAULT_HASHTAGS[0]}`,
             index + 200
         );
-        accepted.push({
-            text,
-            sourceAge: normalizeSourceAge(tool?.sourceAge, ((index + 6) % 12) + 1),
-        });
+        const duplicateWithAccepted = accepted.some((item) => isNearDuplicate(item.text, text));
+        const duplicateWithHistory = historical.some((item) => isNearDuplicate(item, text));
+        if (!duplicateWithAccepted && !duplicateWithHistory && !validateTweetText(text).length) {
+            accepted.push({
+                text,
+                sourceAge: normalizeSourceAge(tool?.sourceAge, ((index + 6) % 12) + 1),
+            });
+        }
+        rescueGuard += 1;
+    }
+
+    let emergencyGuard = 0;
+    while (accepted.length < TARGET_TWEETS && emergencyGuard < 200) {
+        const index = accepted.length + emergencyGuard;
+        const tool = TOOL_LIBRARY[(index + 3) % TOOL_LIBRARY.length];
+        const text = buildEmergencyTweet(tool, index + 900);
+        const duplicateWithAccepted = accepted.some((item) => isNearDuplicate(item.text, text));
+        const duplicateWithHistory = historical.some((item) => isNearDuplicate(item, text));
+        if (!duplicateWithAccepted && !duplicateWithHistory && !validateTweetText(text).length) {
+            accepted.push({
+                text,
+                sourceAge: normalizeSourceAge(tool?.sourceAge, ((index + 7) % 12) + 1),
+            });
+        }
+        emergencyGuard += 1;
+    }
+
+    let hardFillGuard = 0;
+    while (accepted.length < TARGET_TWEETS && hardFillGuard < 200) {
+        const index = accepted.length + hardFillGuard;
+        const tool = TOOL_LIBRARY[(index + 5) % TOOL_LIBRARY.length];
+        const text = buildEmergencyTweet(tool, index + 1200);
+        if (!validateTweetText(text).length) {
+            accepted.push({
+                text,
+                sourceAge: normalizeSourceAge(tool?.sourceAge, ((index + 8) % 12) + 1),
+            });
+        }
+        hardFillGuard += 1;
     }
 
     return accepted.slice(0, TARGET_TWEETS);
