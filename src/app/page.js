@@ -230,12 +230,25 @@ export default function Home() {
   const tweetedCount = tweetedStatus.filter(Boolean).length;
   const pendingCount = tweets.length - tweetedCount;
 
-  function coreLength(text) {
+  function xLength(text) {
     const value = typeof text === "string" ? text : "";
-    const withoutPrefix = value.replace(/^[A-Z][A-Z0-9]{2,16}:\s*/i, "");
-    const withoutTags = withoutPrefix.replace(/#[a-z0-9_]+/gi, " ");
-    const withoutEmoji = withoutTags.replace(/[\u{1F300}-\u{1FAFF}\u2600-\u27BF]/gu, "");
-    return withoutEmoji.replace(/\s+/g, " ").trim().length;
+    if (!value) return 0;
+    const urlRe = /https?:\/\/\S+|www\.\S+/gi;
+    const urls = [...value.matchAll(urlRe)];
+    if (!urls.length) return Array.from(value).length;
+
+    let total = 0;
+    let cursor = 0;
+    for (const match of urls) {
+      const start = match.index ?? 0;
+      const token = match[0] || "";
+      const end = start + token.length;
+      if (start > cursor) total += Array.from(value.slice(cursor, start)).length;
+      total += 23;
+      cursor = end;
+    }
+    if (cursor < value.length) total += Array.from(value.slice(cursor)).length;
+    return total;
   }
 
   async function handleLogout() {
@@ -343,9 +356,9 @@ export default function Home() {
               <div className="stat-item">
                 <span className="stat-value">
                   {Math.round(
-                    tweets.reduce((sum, t) => sum + coreLength(typeof t === "string" ? t : t.text), 0) / tweets.length
+                    tweets.reduce((sum, t) => sum + xLength(typeof t === "string" ? t : t.text), 0) / tweets.length
                   )}
-                </span> avg core
+                </span> avg X
               </div>
               {generatedAt && (
                 <div className="stat-item">

@@ -1,21 +1,51 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "AI Daily Tweets | AI-Powered Tweet Generator",
+  title: "AI Tools Explorer | Daily Viral Tweets Generator",
   description:
-    "Get 10 curated AI tweets generated daily by AI. Copy or post directly to X (Twitter). Stay ahead of AI trends, tools, and insights.",
-  keywords: ["AI tweets", "Twitter AI", "AI content", "daily tweets", "AI tools", "AI trends"],
-  authors: [{ name: "AI Tweet Agent" }],
+    "Discover the latest AI tools, launches, and updates. Generate 10 viral, ready-to-post tweets daily. Powered by Gemini 2.5 & Multi-Source News Engine (Product Hunt, GitHub, Reddit).",
+  keywords: [
+    "AI tweets",
+    "AI tools",
+    "Gemini 2.5",
+    "AI agents",
+    "Product Hunt trends",
+    "GitHub AI",
+    "Twitter AI",
+    "daily content generator",
+    "automated social media",
+  ],
+  authors: [{ name: "AI Tools Explorer" }],
+  creator: "AI Tools Explorer",
+  publisher: "AI Tools Explorer",
+  alternates: {
+    canonical: "https://ai-x-tweet-agent.vercel.app",
+  },
   manifest: "/manifest.json",
   openGraph: {
-    title: "AI Daily Tweets",
-    description: "10 curated AI tweets, freshly generated every day.",
+    title: "AI Tools Explorer | Daily Viral Tweets",
+    description: "Generate 10 practical, viral AI tweets daily. Track launches from Product Hunt, GitHub, and more.",
+    url: "https://ai-x-tweet-agent.vercel.app",
+    siteName: "AI Tools Explorer",
+    locale: "en_US",
     type: "website",
   },
   twitter: {
-    card: "summary",
-    title: "AI Daily Tweets",
-    description: "10 curated AI tweets, freshly generated every day.",
+    card: "summary_large_image",
+    title: "AI Tools Explorer",
+    description: "Daily AI tool discoveries and viral tweet generator. Powered by Gemini.",
+    creator: "@AIToolsExplorer",
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
   },
 };
 

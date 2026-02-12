@@ -8,6 +8,8 @@ const MIN_TWEET_LENGTH = 270;
 const MAX_TWEET_LENGTH = 275;
 const TARGET_TWEET_LENGTH = 272;
 const MAX_RAW_TWEET_LENGTH = 420;
+const X_MAX_TWEET_LENGTH = 280;
+const X_URL_LENGTH = 23;
 const MIN_HASHTAGS = 1;
 const MAX_HASHTAGS = 2;
 const MAX_MODEL_ATTEMPTS = 4;
@@ -96,8 +98,8 @@ Voice:
 
 Hard rules:
 1) Return exactly ${TARGET_TWEETS} tweets in JSON.
-2) Core tweet text MUST be ${MIN_TWEET_LENGTH}-${MAX_TWEET_LENGTH} characters after excluding the one-word prefix, hashtags, and emojis.
-3) Target ${TARGET_TWEET_LENGTH}-${MAX_TWEET_LENGTH} core chars whenever possible.
+2) Final tweet MUST fit X character limit (max ${X_MAX_TWEET_LENGTH} weighted characters).
+3) Core tweet text should be as long as possible after excluding prefix/hashtags/emojis, without breaking rule #2.
 4) Start every tweet with exactly one uppercase word + colon (example: INSIGHT: ...).
 5) Focus on AI tools and AI workflows only. No market/news narration.
 6) Every tweet must feel like a practical mini-article compressed for X.
@@ -254,6 +256,36 @@ function extractUrls(text) {
     return (text || "").match(URL_RE) || [];
 }
 
+function getXWeightedLength(text) {
+    const value = typeof text === "string" ? text : "";
+    if (!value) return 0;
+
+    const matches = [...value.matchAll(URL_RE)];
+    if (!matches.length) return Array.from(value).length;
+
+    let total = 0;
+    let cursor = 0;
+
+    for (const match of matches) {
+        const start = match.index ?? 0;
+        const token = match[0] || "";
+        const end = start + token.length;
+
+        if (start > cursor) {
+            total += Array.from(value.slice(cursor, start)).length;
+        }
+
+        total += X_URL_LENGTH;
+        cursor = end;
+    }
+
+    if (cursor < value.length) {
+        total += Array.from(value.slice(cursor)).length;
+    }
+
+    return total;
+}
+
 function normalizeUrlToken(token) {
     return (token || "").replace(/[),.!?;:]+$/g, "").trim();
 }
@@ -326,6 +358,95 @@ function ensureCleanEnding(text) {
         if (/[.!?]$/.test(shorter)) return shorter;
         if (shorter.length < MAX_RAW_TWEET_LENGTH) return `${shorter}.`;
         return shorter;
+    }
+
+    return output;
+}
+
+function fitToXLimit(text, seed = 0) {
+    let output = (text || "").replace(/\s+/g, " ").trim();
+    if (!output) return output;
+
+    const removablePhrases = [...ENGAGEMENT_LINES, ...LENGTH_FILLERS, ...MICRO_FILLERS];
+
+    for (let guard = 0; guard < 220 && getXWeightedLength(output) > X_MAX_TWEET_LENGTH; guard += 1) {
+        const tags = output.match(/#[a-z0-9_]+/gi) || [];
+        if (tags.length > MIN_HASHTAGS) {
+            const tagToDrop = tags[tags.length - 1];
+            const idx = output.lastIndexOf(tagToDrop);
+            if (idx >= 0) {
+                output = `${output.slice(0, idx)} ${output.slice(idx + tagToDrop.length)}`
+                    .replace(/\s+/g, " ")
+                    .trim();
+                continue;
+            }
+        }
+
+        let removedPhrase = false;
+        for (const phrase of removablePhrases) {
+            const escaped = phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            const re = new RegExp(`\\s*${escaped}\\s*`, "i");
+            if (re.test(output)) {
+                output = output.replace(re, " ").replace(/\s+/g, " ").trim();
+                removedPhrase = true;
+                break;
+            }
+        }
+        if (removedPhrase) continue;
+
+        const linkIdx = output.search(/\b(?:Link|Try(?: it now)?):\s*(https?:\/\/\S+|www\.\S+)/i);
+        if (linkIdx > 0) {
+            const head = output.slice(0, linkIdx).trim();
+            const tail = output.slice(linkIdx).trim();
+            const words = head.split(/\s+/).filter(Boolean);
+            if (words.length > 8) {
+                const dropAt = Math.max(3, words.length - 6);
+                words.splice(dropAt, 1);
+                output = `${words.join(" ")} ${tail}`.replace(/\s+/g, " ").trim();
+                continue;
+            }
+        }
+
+        const words = output.split(/\s+/).filter(Boolean);
+        if (words.length <= 8) break;
+
+        let dropIndex = words.length - 1;
+        while (
+            dropIndex > 0 &&
+            (/^#/.test(words[dropIndex]) ||
+                /^(https?:\/\/|www\.)/i.test(words[dropIndex]) ||
+                /^@\w+/.test(words[dropIndex]) ||
+                /^(Link:|Try:|now:)$/i.test(words[dropIndex]))
+        ) {
+            dropIndex -= 1;
+        }
+
+        if (dropIndex <= 2) break;
+        words.splice(dropIndex, 1);
+        output = words.join(" ").replace(/\s+/g, " ").trim();
+    }
+
+    output = ensureCleanEnding(output);
+    output = ensureRequiredTokens(output, seed + 31);
+
+    if (getXWeightedLength(output) > X_MAX_TWEET_LENGTH) {
+        while (getXWeightedLength(output) > X_MAX_TWEET_LENGTH && output.includes(" ")) {
+            const chunks = output.split(/\s+/);
+            let idx = chunks.length - 1;
+            while (
+                idx > 1 &&
+                (/^#/.test(chunks[idx]) ||
+                    /^(https?:\/\/|www\.)/i.test(chunks[idx]) ||
+                    /^@\w+/.test(chunks[idx]) ||
+                    /^(Link:|Try:|now:)$/i.test(chunks[idx]))
+            ) {
+                idx -= 1;
+            }
+            if (idx <= 1) break;
+            chunks.splice(idx, 1);
+            output = chunks.join(" ").replace(/\s+/g, " ").trim();
+        }
+        output = ensureCleanEnding(output);
     }
 
     return output;
@@ -570,14 +691,17 @@ function hardenTweetText(text, seed = 0) {
     output = trimToMaxLength(output);
     output = ensureCleanEnding(output);
     output = ensureRequiredTokens(output, seed + 11);
+    output = fitToXLimit(output, seed + 12);
     output = trimToMaxLength(output);
     output = ensureHashtagRange(output, seed + 6);
     output = ensureCleanEnding(output);
+    output = fitToXLimit(output, seed + 13);
 
     if (getCoreTweetLength(output) < MIN_TWEET_LENGTH) {
         output = padTowardTargetLength(output, seed + 7);
         output = padToMinimumLength(output, seed + 8);
         output = ensureRequiredTokens(output, seed + 12);
+        output = fitToXLimit(output, seed + 14);
         output = trimToMaxLength(output);
     }
 
@@ -606,12 +730,18 @@ function hardenTweetText(text, seed = 0) {
     output = ensureRequiredTokens(output, seed + 13);
     output = ensureHashtagRange(output, seed + 14);
     output = ensureCleanEnding(output);
+    output = fitToXLimit(output, seed + 15);
     output = trimToMaxLength(output);
 
     if (getCoreTweetLength(output) < MIN_TWEET_LENGTH) {
         output = padToMinimumLength(output, seed + 15);
         output = ensureCleanEnding(output);
+        output = fitToXLimit(output, seed + 16);
         output = trimToMaxLength(output);
+    }
+
+    if (getXWeightedLength(output) > X_MAX_TWEET_LENGTH) {
+        output = fitToXLimit(output, seed + 17);
     }
 
     return output.trim();
@@ -628,10 +758,16 @@ function validateTweetText(text) {
 
     const length = getCoreTweetLength(value);
     const rawLength = value.length;
+    const xLength = getXWeightedLength(value);
+    const coreBudget = Math.max(0, X_MAX_TWEET_LENGTH - (xLength - length));
     const hashtags = countHashtags(value);
-    if (length < MIN_TWEET_LENGTH) issues.push(`too short core (${length})`);
+    if (coreBudget >= MIN_TWEET_LENGTH && length < MIN_TWEET_LENGTH) {
+        issues.push(`too short core (${length})`);
+    }
     if (length > MAX_TWEET_LENGTH) issues.push(`too long core (${length})`);
     if (rawLength > MAX_RAW_TWEET_LENGTH) issues.push(`too long raw (${rawLength})`);
+    if (xLength > X_MAX_TWEET_LENGTH) issues.push(`exceeds X limit (${xLength})`);
+    if (length > coreBudget) issues.push(`core too long for X budget (${length} > ${coreBudget})`);
     if (isNewsy(value)) issues.push("newsy framing");
     if (!ONE_WORD_PREFIX_RE.test(value)) issues.push("missing one-word prefix");
     if (!hasValidUrl(value)) issues.push("missing link");
@@ -886,7 +1022,8 @@ async function requestTweets({
         "",
         "Task:",
         `Generate ${TARGET_TWEETS} tweets for @AIToolsExplorer.`,
-        `Core tweet text must be ${MIN_TWEET_LENGTH}-${MAX_TWEET_LENGTH} chars after excluding prefix/hashtags/emojis (target ${TARGET_TWEET_LENGTH}-${MAX_TWEET_LENGTH}).`,
+        `Final tweet must be <= ${X_MAX_TWEET_LENGTH} X weighted characters (URLs count as ${X_URL_LENGTH}).`,
+        `Keep core text as detailed as possible after excluding prefix/hashtags/emojis, but never violate X limit.`,
         "Every tweet must start with one word prefix + colon (example: INSIGHT: ...).",
         "Do not sound like a journalist or news reporter.",
         "Tweets must be practical AI tool discoveries with links, hashtags, account tags, and emojis.",

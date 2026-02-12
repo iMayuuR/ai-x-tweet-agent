@@ -1,7 +1,7 @@
 {
-    "name": "AI Daily Tweets",
-    "short_name": "AI Tweets",
-    "description": "10 curated AI tweets, freshly generated every day",
+    "name": "AI Tools Explorer",
+    "short_name": "AI Tools",
+    "description": "Daily viral AI tweets and tool discoveries",
     "start_url": "/",
     "display": "standalone",
     "background_color": "#0a0a0f",

@@ -16,9 +16,31 @@ export default function TweetCard({ tweet, index, date, isTweeted, onMarkTweeted
         return withoutEmoji.replace(/\s+/g, " ").trim().length;
     }
 
+    function xLength(text) {
+        const value = typeof text === "string" ? text : "";
+        if (!value) return 0;
+        const urlRe = /https?:\/\/\S+|www\.\S+/gi;
+        const urls = [...value.matchAll(urlRe)];
+        if (!urls.length) return Array.from(value).length;
+
+        let total = 0;
+        let cursor = 0;
+        for (const match of urls) {
+            const start = match.index ?? 0;
+            const token = match[0] || "";
+            const end = start + token.length;
+            if (start > cursor) total += Array.from(value.slice(cursor, start)).length;
+            total += 23;
+            cursor = end;
+        }
+        if (cursor < value.length) total += Array.from(value.slice(cursor)).length;
+        return total;
+    }
+
     const rawCharCount = tweetText.length;
     const effectiveCharCount = coreCharCount(tweetText);
-    const isWarning = effectiveCharCount < 270 || effectiveCharCount > 275;
+    const xCharCount = xLength(tweetText);
+    const isWarning = xCharCount > 280;
 
     function freshnessHoursLabel(value) {
         if (!value || typeof value !== "string") return "1h";
@@ -113,10 +135,10 @@ export default function TweetCard({ tweet, index, date, isTweeted, onMarkTweeted
                             </span>
                         )}
                         <span
-                            title={`Raw: ${rawCharCount}`}
+                            title={`Raw: ${rawCharCount} | Core: ${effectiveCharCount}`}
                             className={`text-xs font-mono ${isWarning ? "text-red-400 font-bold" : "text-slate-500"}`}
                         >
-                            {effectiveCharCount}/270-275 core
+                            {xCharCount}/280 X
                         </span>
                     </div>
                 </div>
