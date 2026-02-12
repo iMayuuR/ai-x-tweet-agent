@@ -394,7 +394,8 @@ function fitToXLimit(text, seed = 0) {
         }
         if (removedPhrase) continue;
 
-        const linkIdx = output.search(/\b(?:Link|Try(?: it now)?):\s*(https?:\/\/\S+|www\.\S+)/i);
+        const linkMatch = output.match(URL_RE);
+        const linkIdx = linkMatch && typeof linkMatch.index === "number" ? linkMatch.index : -1;
         if (linkIdx > 0) {
             const head = output.slice(0, linkIdx).trim();
             const tail = output.slice(linkIdx).trim();
@@ -415,8 +416,7 @@ function fitToXLimit(text, seed = 0) {
             dropIndex > 0 &&
             (/^#/.test(words[dropIndex]) ||
                 /^(https?:\/\/|www\.)/i.test(words[dropIndex]) ||
-                /^@\w+/.test(words[dropIndex]) ||
-                /^(Link:|Try:|now:)$/i.test(words[dropIndex]))
+                /^@\w+/.test(words[dropIndex]))
         ) {
             dropIndex -= 1;
         }
@@ -437,8 +437,7 @@ function fitToXLimit(text, seed = 0) {
                 idx > 1 &&
                 (/^#/.test(chunks[idx]) ||
                     /^(https?:\/\/|www\.)/i.test(chunks[idx]) ||
-                    /^@\w+/.test(chunks[idx]) ||
-                    /^(Link:|Try:|now:)$/i.test(chunks[idx]))
+                    /^@\w+/.test(chunks[idx]))
             ) {
                 idx -= 1;
             }
@@ -548,7 +547,7 @@ function ensureLinkAndMention(text, seed = 0) {
     const fallbackTool = TOOL_LIBRARY[seed % TOOL_LIBRARY.length] || TOOL_LIBRARY[0];
 
     if (!hasValidUrl(output)) {
-        output = `${output} Link: ${fallbackTool.link}`.replace(/\s+/g, " ").trim();
+        output = `${output} ${fallbackTool.link}`.replace(/\s+/g, " ").trim();
     }
 
     if (countMentions(output) < 1) {
@@ -562,7 +561,7 @@ function ensureLinkAndMention(text, seed = 0) {
 function ensureRequiredTokens(text, seed = 0) {
     let output = (text || "").replace(/\s+/g, " ").trim();
     const fallbackTool = TOOL_LIBRARY[seed % TOOL_LIBRARY.length] || TOOL_LIBRARY[0];
-    const linkToken = `Link: ${fallbackTool.link}`;
+    const linkToken = `${fallbackTool.link}`;
 
     if (!hasValidUrl(output)) {
         const reserve = linkToken.length + 1;
@@ -899,7 +898,7 @@ function buildFallbackTweet(tool, index, entropy = 0) {
     const body = `It helps ${tool.audience} ${tool.useCase}, and the core win is simple: ${tool.capability}.`;
     const proof = pick(proofLines, index + entropy);
     const hype = pick(ENGAGEMENT_LINES, index + entropy);
-    const linkLine = `Link: ${tool.link}`;
+    const linkLine = `${tool.link}`;
 
     return hardenTweetText(`${intro} ${linkLine} ${body} ${proof} ${hype} ${hashtags}`, index + entropy);
 }
@@ -975,7 +974,7 @@ function ensureExactTenTweets({ candidateTweets = [], blockedTweets = [], signal
         for (let i = 0; i < 100 && accepted.length < TARGET_TWEETS; i += 1) {
             const tool = TOOL_LIBRARY[(i + nonce.length) % TOOL_LIBRARY.length];
             const text = hardenTweetText(
-                `${tool.name}${tool.handle ? ` ${tool.handle}` : ""} is delivering strong creator momentum right now with practical wins for ${tool.audience}. Real use-case: ${tool.useCase}. Core edge: ${tool.capability}. Link: ${tool.link} ${DEFAULT_HASHTAGS[0]} ${pick(DEFAULT_HASHTAGS, i + 1)}`,
+                `${tool.name}${tool.handle ? ` ${tool.handle}` : ""} is delivering strong creator momentum right now with practical wins for ${tool.audience}. Real use-case: ${tool.useCase}. Core edge: ${tool.capability}. ${tool.link} ${DEFAULT_HASHTAGS[0]} ${pick(DEFAULT_HASHTAGS, i + 1)}`,
                 i + nonce.length
             );
             const duplicateWithAccepted = accepted.some((item) => isNearDuplicate(item.text, text));
@@ -992,7 +991,7 @@ function ensureExactTenTweets({ candidateTweets = [], blockedTweets = [], signal
         const index = accepted.length;
         const tool = TOOL_LIBRARY[index % TOOL_LIBRARY.length];
         const text = hardenTweetText(
-            `${tool.name}${tool.handle ? ` ${tool.handle}` : ""} gives builders a practical speed boost. Best use-case: ${tool.useCase}. Why it hits: ${tool.capability}. Try it now: ${tool.link} ${DEFAULT_HASHTAGS[0]}`,
+            `${tool.name}${tool.handle ? ` ${tool.handle}` : ""} gives builders a practical speed boost. Best use-case: ${tool.useCase}. Why it hits: ${tool.capability}. ${tool.link} ${DEFAULT_HASHTAGS[0]}`,
             index + 200
         );
         accepted.push({
@@ -1162,4 +1161,3 @@ export async function generateTweets(options = {}) {
         nowIso,
     });
 }
-
