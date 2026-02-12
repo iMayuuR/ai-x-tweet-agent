@@ -4,12 +4,14 @@ import { getTrendingNews } from "./news";
 const MODEL_NAME = process.env.GEMINI_MODEL || "gemini-2.5-flash"; // Deployed
 
 const TARGET_TWEETS = 10;
-const MIN_TWEET_LENGTH = 270;
 const MAX_TWEET_LENGTH = 275;
-const TARGET_TWEET_LENGTH = 272;
 const MAX_RAW_TWEET_LENGTH = 420;
 const X_MAX_TWEET_LENGTH = 280;
 const X_URL_LENGTH = 23;
+const TARGET_X_MIN = 270;
+const TARGET_X_MAX = 275;
+const MIN_BODY_CORE_LENGTH = 210;
+const TARGET_BODY_CORE_LENGTH = 235;
 const MIN_HASHTAGS = 1;
 const MAX_HASHTAGS = 2;
 const MAX_MODEL_ATTEMPTS = 4;
@@ -98,8 +100,8 @@ Voice:
 
 Hard rules:
 1) Return exactly ${TARGET_TWEETS} tweets in JSON.
-2) Final tweet MUST fit X character limit (max ${X_MAX_TWEET_LENGTH} weighted characters).
-3) Core tweet text should be as long as possible after excluding prefix/hashtags/emojis, without breaking rule #2.
+2) Final tweet MUST be ${TARGET_X_MIN}-${TARGET_X_MAX} X weighted characters.
+3) Final tweet must never exceed ${X_MAX_TWEET_LENGTH} weighted characters.
 4) Start every tweet with exactly one uppercase word + colon (example: INSIGHT: ...).
 5) Focus on AI tools and AI workflows only. No market/news narration.
 6) Every tweet must feel like a practical mini-article compressed for X.
@@ -111,6 +113,7 @@ Hard rules:
 12) Every tweet must be unique and start differently.
 13) Never output placeholders, incomplete lines, or unfinished sentences.
 14) Never use phrasing like breaking, headline, reported, according to, press release, news.
+15) Use this structure exactly: {HOOK WORD + EMOJI} {MAIN TWEET BODY} {RELEVANT LINK} {HASHTAGS + MENTIONS}.
 
 Official handles:
 OpenAI=@OpenAI, Google/Gemini=@GoogleAI, Anthropic/Claude=@AnthropicAI, Meta AI=@MetaAI,
@@ -333,6 +336,7 @@ function ensureCleanEnding(text) {
     const endsWithAllowed =
         /[.!?]$/.test(output) ||
         /#[a-z0-9_]+$/i.test(output) ||
+        /@[a-z0-9_]+$/i.test(output) ||
         /(?:https?:\/\/\S+|www\.\S+)$/i.test(output);
 
     if (endsWithAllowed) return output;
@@ -343,6 +347,7 @@ function ensureCleanEnding(text) {
     const recheckAllowed =
         /[.!?]$/.test(output) ||
         /#[a-z0-9_]+$/i.test(output) ||
+        /@[a-z0-9_]+$/i.test(output) ||
         /(?:https?:\/\/\S+|www\.\S+)$/i.test(output);
 
     if (recheckAllowed) return output;
@@ -363,13 +368,13 @@ function ensureCleanEnding(text) {
     return output;
 }
 
-function fitToXLimit(text, seed = 0) {
+function fitToXLimit(text, seed = 0, maxWeighted = TARGET_X_MAX) {
     let output = (text || "").replace(/\s+/g, " ").trim();
     if (!output) return output;
 
     const removablePhrases = [...ENGAGEMENT_LINES, ...LENGTH_FILLERS, ...MICRO_FILLERS];
 
-    for (let guard = 0; guard < 220 && getXWeightedLength(output) > X_MAX_TWEET_LENGTH; guard += 1) {
+    for (let guard = 0; guard < 220 && getXWeightedLength(output) > maxWeighted; guard += 1) {
         const tags = output.match(/#[a-z0-9_]+/gi) || [];
         if (tags.length > MIN_HASHTAGS) {
             const tagToDrop = tags[tags.length - 1];
@@ -429,8 +434,8 @@ function fitToXLimit(text, seed = 0) {
     output = ensureCleanEnding(output);
     output = ensureRequiredTokens(output, seed + 31);
 
-    if (getXWeightedLength(output) > X_MAX_TWEET_LENGTH) {
-        while (getXWeightedLength(output) > X_MAX_TWEET_LENGTH && output.includes(" ")) {
+    if (getXWeightedLength(output) > maxWeighted) {
+        while (getXWeightedLength(output) > maxWeighted && output.includes(" ")) {
             const chunks = output.split(/\s+/);
             let idx = chunks.length - 1;
             while (
@@ -581,6 +586,144 @@ function ensureRequiredTokens(text, seed = 0) {
     return output;
 }
 
+function dedupeList(items = []) {
+    const output = [];
+    const seen = new Set();
+    for (const item of items) {
+        const value = (item || "").trim();
+        if (!value) continue;
+        const key = value.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        output.push(value);
+    }
+    return output;
+}
+
+function pickToolFromText(text = "", seed = 0) {
+    const value = (text || "").toLowerCase();
+    const byName = TOOL_LIBRARY.find((tool) => value.includes((tool.name || "").toLowerCase()));
+    if (byName) return byName;
+    const byHandle = TOOL_LIBRARY.find((tool) => tool.handle && value.includes(tool.handle.toLowerCase()));
+    if (byHandle) return byHandle;
+    return TOOL_LIBRARY[seed % TOOL_LIBRARY.length] || TOOL_LIBRARY[0];
+}
+
+function cleanBodyForStructure(text = "") {
+    let body = (text || "").trim();
+    body = body.replace(/^[A-Z][A-Z0-9]{2,16}:\s*/i, "");
+    body = body.replace(URL_RE, " ");
+    body = body.replace(/#[a-z0-9_]+/gi, " ");
+    body = body.replace(/@[a-z0-9_]+/gi, " ");
+    body = body.replace(EMOJI_GLOBAL_RE, "");
+    body = body.replace(/[|]+/g, " ");
+    body = body.replace(/\s+/g, " ").trim();
+    body = body.replace(/^[,.;:!?-]+/, "").replace(/[,.;:!?-]+$/, "").trim();
+    return body;
+}
+
+function ensureBodySentence(body = "") {
+    let output = (body || "").replace(/\s+/g, " ").trim();
+    output = output.replace(FRAGMENT_END_RE, "").trim();
+    if (!output) return output;
+    if (!/[.!?]$/.test(output)) {
+        output = `${output}.`;
+    }
+    return output;
+}
+
+function composeStructuredTweet({ hook, emoji, body, url, mention, hashtags }) {
+    return `${hook}: ${emoji} ${body} ${url} ${hashtags.join(" ")} ${mention}`
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
+function formatStructuredTweet(text, seed = 0) {
+    const tool = pickToolFromText(text, seed);
+    const hook = pick(EXPERT_HOOK_WORDS, seed).replace(/[^A-Z0-9]/gi, "") || "INSIGHT";
+    const emoji = (text.match(EMOJI_GLOBAL_RE) || [pick(["\uD83D\uDE80", "\uD83D\uDD25", "\u26A1", "\u2728"], seed + 1)])[0] || "\uD83D\uDE80";
+
+    const urls = dedupeList(
+        extractUrls(text)
+            .map((value) => normalizeUrlToken(value))
+            .filter((value) => isLikelyValidUrlToken(value))
+    );
+    const url = urls[0] || tool.link || "https://chatgpt.com";
+
+    const mentionsRaw = dedupeList((text.match(/@[a-z0-9_]+/gi) || []));
+    const mention = mentionsRaw[0] || tool.handle || "@OpenAI";
+
+    let hashtags = dedupeList((text.match(/#[a-z0-9_]+/gi) || []));
+    if (!hashtags.length) {
+        hashtags = [pick(DEFAULT_HASHTAGS, seed + 2) || DEFAULT_HASHTAGS[0]];
+    }
+    if (hashtags.length < 2) {
+        const extra = pick(DEFAULT_HASHTAGS, seed + 3) || DEFAULT_HASHTAGS[0];
+        if (!hashtags.find((tag) => tag.toLowerCase() === extra.toLowerCase())) {
+            hashtags.push(extra);
+        }
+    }
+    hashtags = hashtags.slice(0, MAX_HASHTAGS);
+
+    let body = cleanBodyForStructure(text);
+    if (!body) {
+        body = `${tool.name} helps ${tool.audience} using ${tool.capability}. Best use-case: ${tool.useCase}`;
+    }
+    body = ensureBodySentence(body);
+
+    let output = composeStructuredTweet({ hook, emoji, body, url, mention, hashtags });
+
+    let shrinkGuard = 0;
+    while (getXWeightedLength(output) > TARGET_X_MAX && shrinkGuard < 240) {
+        const words = body.replace(/[.!?]$/g, "").split(/\s+/).filter(Boolean);
+        if (words.length > 14) {
+            words.splice(Math.max(6, words.length - 4), 1);
+            body = ensureBodySentence(words.join(" "));
+        } else if (hashtags.length > MIN_HASHTAGS) {
+            hashtags = hashtags.slice(0, hashtags.length - 1);
+        } else if (words.length > 8) {
+            words.splice(words.length - 1, 1);
+            body = ensureBodySentence(words.join(" "));
+        } else {
+            break;
+        }
+        output = composeStructuredTweet({ hook, emoji, body, url, mention, hashtags });
+        shrinkGuard += 1;
+    }
+
+    const growthFillers = [...ENGAGEMENT_LINES, ...LENGTH_FILLERS, ...MICRO_FILLERS];
+    let growGuard = 0;
+    while (getXWeightedLength(output) < TARGET_X_MIN && growGuard < 160) {
+        const filler = pick(growthFillers, seed + growGuard) || "Useful edge for daily builders.";
+        let candidateBody = ensureBodySentence(
+            `${body.replace(/[.!?]$/g, "")} ${filler}`.replace(/\s+/g, " ").trim()
+        );
+        let candidate = composeStructuredTweet({ hook, emoji, body: candidateBody, url, mention, hashtags });
+
+        if (getXWeightedLength(candidate) > TARGET_X_MAX) {
+            const room = TARGET_X_MAX - getXWeightedLength(output) - 1;
+            if (room <= 0) break;
+            const clipped = filler.slice(0, room).trim();
+            if (!clipped) break;
+            candidateBody = ensureBodySentence(
+                `${body.replace(/[.!?]$/g, "")} ${clipped}`.replace(/\s+/g, " ").trim()
+            );
+            candidate = composeStructuredTweet({ hook, emoji, body: candidateBody, url, mention, hashtags });
+        }
+
+        if (getXWeightedLength(candidate) <= TARGET_X_MAX) {
+            body = candidateBody;
+            output = candidate;
+        } else {
+            break;
+        }
+        growGuard += 1;
+    }
+
+    output = ensureCleanEnding(output);
+    return output;
+}
+
 function ensureHashtagRange(text, seed = 0) {
     let output = text.trim();
     const tags = output.match(/#[a-z0-9_]+/gi) || [];
@@ -616,10 +759,10 @@ function ensureHashtagRange(text, seed = 0) {
 
 function padToMinimumLength(text, seed = 0) {
     let output = text.trim();
-    if (getCoreTweetLength(output) >= MIN_TWEET_LENGTH) return output;
+    if (getCoreTweetLength(output) >= MIN_BODY_CORE_LENGTH) return output;
 
     const fillers = [...LENGTH_FILLERS, ...ENGAGEMENT_LINES, ...MICRO_FILLERS];
-    for (let i = 0; i < fillers.length * 2 && getCoreTweetLength(output) < MIN_TWEET_LENGTH; i += 1) {
+    for (let i = 0; i < fillers.length * 2 && getCoreTweetLength(output) < MIN_BODY_CORE_LENGTH; i += 1) {
         const filler = pick(fillers, seed + i);
         if (!filler) continue;
         const room = MAX_RAW_TWEET_LENGTH - output.length - 1;
@@ -629,7 +772,7 @@ function padToMinimumLength(text, seed = 0) {
         output = `${output} ${add}`.replace(/\s+/g, " ").trim();
     }
 
-    if (getCoreTweetLength(output) < MIN_TWEET_LENGTH) {
+    if (getCoreTweetLength(output) < MIN_BODY_CORE_LENGTH) {
         const room = MAX_RAW_TWEET_LENGTH - output.length - 1;
         if (room > 0) {
             const add = "Practical wins for creators shipping daily."
@@ -644,9 +787,9 @@ function padToMinimumLength(text, seed = 0) {
 
 function padTowardTargetLength(text, seed = 0) {
     let output = text.trim();
-    if (getCoreTweetLength(output) >= TARGET_TWEET_LENGTH) return output;
+    if (getCoreTweetLength(output) >= TARGET_BODY_CORE_LENGTH) return output;
 
-    for (let i = 0; i < MICRO_FILLERS.length * 2 && getCoreTweetLength(output) < TARGET_TWEET_LENGTH; i += 1) {
+    for (let i = 0; i < MICRO_FILLERS.length * 2 && getCoreTweetLength(output) < TARGET_BODY_CORE_LENGTH; i += 1) {
         const filler = pick(MICRO_FILLERS, seed + i);
         if (!filler) continue;
         const room = MAX_RAW_TWEET_LENGTH - output.length - 1;
@@ -696,7 +839,7 @@ function hardenTweetText(text, seed = 0) {
     output = ensureCleanEnding(output);
     output = fitToXLimit(output, seed + 13);
 
-    if (getCoreTweetLength(output) < MIN_TWEET_LENGTH) {
+    if (getCoreTweetLength(output) < MIN_BODY_CORE_LENGTH) {
         output = padTowardTargetLength(output, seed + 7);
         output = padToMinimumLength(output, seed + 8);
         output = ensureRequiredTokens(output, seed + 12);
@@ -708,7 +851,7 @@ function hardenTweetText(text, seed = 0) {
         output = ensureHashtagRange(output, seed + 9);
     }
 
-    if (getCoreTweetLength(output) < MIN_TWEET_LENGTH) {
+    if (getCoreTweetLength(output) < MIN_BODY_CORE_LENGTH) {
         const room = MAX_RAW_TWEET_LENGTH - output.length - 1;
         if (room > 0) {
             const add = "high utility for daily workflows".slice(0, room).trim();
@@ -716,7 +859,7 @@ function hardenTweetText(text, seed = 0) {
         }
     }
 
-    for (let i = 0; i < 8 && getCoreTweetLength(output) < MIN_TWEET_LENGTH; i += 1) {
+    for (let i = 0; i < 8 && getCoreTweetLength(output) < MIN_BODY_CORE_LENGTH; i += 1) {
         const filler = pick([...MICRO_FILLERS, ...LENGTH_FILLERS], seed + 20 + i);
         if (!filler) break;
         const room = MAX_RAW_TWEET_LENGTH - output.length - 1;
@@ -732,18 +875,27 @@ function hardenTweetText(text, seed = 0) {
     output = fitToXLimit(output, seed + 15);
     output = trimToMaxLength(output);
 
-    if (getCoreTweetLength(output) < MIN_TWEET_LENGTH) {
+    if (getCoreTweetLength(output) < MIN_BODY_CORE_LENGTH) {
         output = padToMinimumLength(output, seed + 15);
         output = ensureCleanEnding(output);
         output = fitToXLimit(output, seed + 16);
         output = trimToMaxLength(output);
     }
 
-    if (getXWeightedLength(output) > X_MAX_TWEET_LENGTH) {
-        output = fitToXLimit(output, seed + 17);
+    output = formatStructuredTweet(output, seed + 30);
+    output = fitToXLimit(output, seed + 31, TARGET_X_MAX);
+
+    if (getXWeightedLength(output) < TARGET_X_MIN) {
+        const nudge = pick(ENGAGEMENT_LINES, seed + 32) || "Strong utility for daily builders.";
+        output = formatStructuredTweet(`${output} ${nudge}`, seed + 33);
+        output = fitToXLimit(output, seed + 34, TARGET_X_MAX);
     }
 
-    return output.trim();
+    if (getXWeightedLength(output) > X_MAX_TWEET_LENGTH) {
+        output = fitToXLimit(output, seed + 35, X_MAX_TWEET_LENGTH);
+    }
+
+    return ensureCleanEnding(output).trim();
 }
 
 function validateTweetText(text) {
@@ -758,15 +910,13 @@ function validateTweetText(text) {
     const length = getCoreTweetLength(value);
     const rawLength = value.length;
     const xLength = getXWeightedLength(value);
-    const coreBudget = Math.max(0, X_MAX_TWEET_LENGTH - (xLength - length));
     const hashtags = countHashtags(value);
-    if (coreBudget >= MIN_TWEET_LENGTH && length < MIN_TWEET_LENGTH) {
-        issues.push(`too short core (${length})`);
-    }
+    if (xLength < TARGET_X_MIN) issues.push(`too short X (${xLength})`);
+    if (xLength > TARGET_X_MAX) issues.push(`too long X (${xLength})`);
+    if (length < MIN_BODY_CORE_LENGTH) issues.push(`too short core (${length})`);
     if (length > MAX_TWEET_LENGTH) issues.push(`too long core (${length})`);
     if (rawLength > MAX_RAW_TWEET_LENGTH) issues.push(`too long raw (${rawLength})`);
-    if (xLength > X_MAX_TWEET_LENGTH) issues.push(`exceeds X limit (${xLength})`);
-    if (length > coreBudget) issues.push(`core too long for X budget (${length} > ${coreBudget})`);
+    if (xLength > X_MAX_TWEET_LENGTH) issues.push(`exceeds hard X limit (${xLength})`);
     if (isNewsy(value)) issues.push("newsy framing");
     if (!ONE_WORD_PREFIX_RE.test(value)) issues.push("missing one-word prefix");
     if (!hasValidUrl(value)) issues.push("missing link");
@@ -780,6 +930,7 @@ function validateTweetText(text) {
     const completeEnding =
         /[.!?]$/.test(value) ||
         /#[a-z0-9_]+$/i.test(value) ||
+        /@[a-z0-9_]+$/i.test(value) ||
         /(?:https?:\/\/\S+|www\.\S+)$/i.test(value);
     if (!completeEnding) issues.push("incomplete ending");
     if (FRAGMENT_END_RE.test(trimmedTail)) issues.push("truncated ending");
@@ -1067,8 +1218,9 @@ async function requestTweets({
         "",
         "Task:",
         `Generate ${TARGET_TWEETS} tweets for @AIToolsExplorer.`,
-        `Final tweet must be <= ${X_MAX_TWEET_LENGTH} X weighted characters (URLs count as ${X_URL_LENGTH}).`,
-        `Keep core text as detailed as possible after excluding prefix/hashtags/emojis, but never violate X limit.`,
+        `Final tweet must be ${TARGET_X_MIN}-${TARGET_X_MAX} X weighted characters (URLs count as ${X_URL_LENGTH}).`,
+        `Never exceed ${X_MAX_TWEET_LENGTH} weighted characters.`,
+        "Use this strict format: {HOOK WORD + EMOJI} {BODY} {RELEVANT LINK} {HASHTAGS + MENTIONS}.",
         "Every tweet must start with one word prefix + colon (example: INSIGHT: ...).",
         "Do not sound like a journalist or news reporter.",
         "Tweets must be practical AI tool discoveries with links, hashtags, account tags, and emojis.",

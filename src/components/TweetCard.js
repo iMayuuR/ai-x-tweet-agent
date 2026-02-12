@@ -40,7 +40,7 @@ export default function TweetCard({ tweet, index, date, isTweeted, onMarkTweeted
     const rawCharCount = tweetText.length;
     const effectiveCharCount = coreCharCount(tweetText);
     const xCharCount = xLength(tweetText);
-    const isWarning = xCharCount > 280;
+    const isWarning = xCharCount < 270 || xCharCount > 275;
 
     function freshnessHoursLabel(value) {
         if (!value || typeof value !== "string") return "1h";
@@ -138,7 +138,7 @@ export default function TweetCard({ tweet, index, date, isTweeted, onMarkTweeted
                             title={`Raw: ${rawCharCount} | Core: ${effectiveCharCount}`}
                             className={`text-xs font-mono ${isWarning ? "text-red-400 font-bold" : "text-slate-500"}`}
                         >
-                            {xCharCount}/280 X
+                            {xCharCount}/270-275 X
                         </span>
                     </div>
                 </div>
