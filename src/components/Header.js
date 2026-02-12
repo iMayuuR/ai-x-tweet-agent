@@ -15,10 +15,10 @@ export default function Header({
     const formattedDate = useMemo(() => {
         const d = date ? new Date(date + "T00:00:00") : new Date();
         return d.toLocaleDateString("en-US", {
-            weekday: "long",
-            year: "numeric",
-            month: "long",
+            weekday: "short",
+            month: "short",
             day: "numeric",
+            year: "numeric"
         });
     }, [date]);
 
