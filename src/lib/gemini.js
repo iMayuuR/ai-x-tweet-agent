@@ -1,7 +1,7 @@
 import { getLastDaysTweets, getRecentRunTweets } from "./cache";
 import { getTrendingNews } from "./news";
 
-const MODEL_NAME = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+const MODEL_NAME = process.env.GEMINI_MODEL || "gemini-2.5-flash"; // Deployed
 
 const TARGET_TWEETS = 10;
 const MIN_TWEET_LENGTH = 270;
