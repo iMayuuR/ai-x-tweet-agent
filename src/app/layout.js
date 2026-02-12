@@ -21,6 +21,11 @@ export const metadata = {
   alternates: {
     canonical: "https://ai-x-tweet-agent.vercel.app",
   },
+  icons: {
+    icon: "/icon.svg",
+    shortcut: "/icon.svg",
+    apple: "/icon.svg",
+  },
   manifest: "/manifest.json",
   openGraph: {
     title: "AI Tools Explorer | Daily Viral Tweets",
@@ -63,7 +68,7 @@ export default function RootLayout({ children }) {
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="AI Tweets" />
-        <link rel="apple-touch-icon" href="/icon-192.png" />
+        <link rel="apple-touch-icon" href="/icon.svg" />
       </head>
       <body suppressHydrationWarning>
         <div className="bg-grid" />
