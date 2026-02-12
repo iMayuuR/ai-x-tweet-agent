@@ -7,6 +7,7 @@ const TARGET_TWEETS = 10;
 const MIN_TWEET_LENGTH = 270;
 const MAX_TWEET_LENGTH = 275;
 const TARGET_TWEET_LENGTH = 272;
+const MAX_RAW_TWEET_LENGTH = 420;
 const MIN_HASHTAGS = 1;
 const MAX_HASHTAGS = 2;
 const MAX_MODEL_ATTEMPTS = 4;
@@ -64,6 +65,7 @@ const NEWSY_PATTERNS = [
 const ONE_WORD_PREFIX_RE = /^[A-Z][A-Z0-9]{2,16}:/;
 const URL_RE = /https?:\/\/\S+|www\.\S+/gi;
 const EMOJI_RE = /[\u{1F300}-\u{1FAFF}\u2600-\u27BF]/u;
+const EMOJI_GLOBAL_RE = /[\u{1F300}-\u{1FAFF}\u2600-\u27BF]/gu;
 const FRAGMENT_END_RE = /\b(and|or|with|for|to|in|on|at|from|by|of|is|are|was|were|immediate|setup|output|fast|strong|practical|daily|today|now)\b$/i;
 
 const TOOL_LIBRARY = [
@@ -94,8 +96,8 @@ Voice:
 
 Hard rules:
 1) Return exactly ${TARGET_TWEETS} tweets in JSON.
-2) Every tweet MUST be ${MIN_TWEET_LENGTH}-${MAX_TWEET_LENGTH} characters.
-3) Target ${TARGET_TWEET_LENGTH}-${MAX_TWEET_LENGTH} chars whenever possible.
+2) Core tweet text MUST be ${MIN_TWEET_LENGTH}-${MAX_TWEET_LENGTH} characters after excluding the one-word prefix, hashtags, and emojis.
+3) Target ${TARGET_TWEET_LENGTH}-${MAX_TWEET_LENGTH} core chars whenever possible.
 4) Start every tweet with exactly one uppercase word + colon (example: INSIGHT: ...).
 5) Focus on AI tools and AI workflows only. No market/news narration.
 6) Every tweet must feel like a practical mini-article compressed for X.
@@ -238,8 +240,18 @@ function hasEmoji(text) {
     return EMOJI_RE.test(text || "");
 }
 
+function getCoreTweetLength(text) {
+    const value = typeof text === "string" ? text : "";
+    if (!value) return 0;
+
+    const withoutPrefix = value.replace(/^[A-Z][A-Z0-9]{2,16}:\s*/i, "");
+    const withoutTags = withoutPrefix.replace(/#[a-z0-9_]+/gi, " ");
+    const withoutEmoji = withoutTags.replace(EMOJI_GLOBAL_RE, "");
+    return withoutEmoji.replace(/\s+/g, " ").trim().length;
+}
+
 function extractUrls(text) {
-    return (text || "").match(/https?:\/\/\S+|www\.\S+/gi) || [];
+    return (text || "").match(URL_RE) || [];
 }
 
 function normalizeUrlToken(token) {
@@ -303,7 +315,7 @@ function ensureCleanEnding(text) {
 
     if (recheckAllowed) return output;
 
-    if (output.length < MAX_TWEET_LENGTH) {
+    if (output.length < MAX_RAW_TWEET_LENGTH) {
         return `${output}.`.trim();
     }
 
@@ -312,7 +324,7 @@ function ensureCleanEnding(text) {
         const shorter = output.slice(0, cutAt).trim();
         if (!shorter) return output;
         if (/[.!?]$/.test(shorter)) return shorter;
-        if (shorter.length < MAX_TWEET_LENGTH) return `${shorter}.`;
+        if (shorter.length < MAX_RAW_TWEET_LENGTH) return `${shorter}.`;
         return shorter;
     }
 
@@ -374,7 +386,7 @@ function isNearDuplicate(textA, textB) {
     return score >= DUPLICATE_JACCARD_THRESHOLD;
 }
 
-function trimToMaxLength(text, max = MAX_TWEET_LENGTH) {
+function trimToMaxLength(text, max = MAX_RAW_TWEET_LENGTH) {
     if (text.length <= max) return text;
     const sliced = text.slice(0, max + 1);
     const cutAt = sliced.lastIndexOf(" ");
@@ -433,7 +445,7 @@ function ensureRequiredTokens(text, seed = 0) {
 
     if (!hasValidUrl(output)) {
         const reserve = linkToken.length + 1;
-        const cap = Math.max(MIN_TWEET_LENGTH - 1, MAX_TWEET_LENGTH - reserve);
+        const cap = Math.max(180, MAX_RAW_TWEET_LENGTH - reserve);
         output = trimToMaxLength(output, cap);
         output = `${output} ${linkToken}`.replace(/\s+/g, " ").trim();
     }
@@ -441,7 +453,7 @@ function ensureRequiredTokens(text, seed = 0) {
     if (countMentions(output) < 1) {
         const mention = fallbackTool.handle || "@OpenAI";
         const reserve = mention.length + 1;
-        const cap = Math.max(MIN_TWEET_LENGTH - 1, MAX_TWEET_LENGTH - reserve);
+        const cap = Math.max(180, MAX_RAW_TWEET_LENGTH - reserve);
         output = trimToMaxLength(output, cap);
         output = `${output} ${mention}`.replace(/\s+/g, " ").trim();
     }
@@ -474,7 +486,7 @@ function ensureHashtagRange(text, seed = 0) {
 
     if (countHashtags(output) < MIN_HASHTAGS) {
         const tag = DEFAULT_HASHTAGS[0];
-        const room = Math.max(0, MAX_TWEET_LENGTH - tag.length - 1);
+        const room = Math.max(0, MAX_RAW_TWEET_LENGTH - tag.length - 1);
         output = `${output.slice(0, room).trim()} ${tag}`.trim();
         output = trimToMaxLength(output);
     }
@@ -484,21 +496,21 @@ function ensureHashtagRange(text, seed = 0) {
 
 function padToMinimumLength(text, seed = 0) {
     let output = text.trim();
-    if (output.length >= MIN_TWEET_LENGTH) return output;
+    if (getCoreTweetLength(output) >= MIN_TWEET_LENGTH) return output;
 
     const fillers = [...LENGTH_FILLERS, ...ENGAGEMENT_LINES, ...MICRO_FILLERS];
-    for (let i = 0; i < fillers.length * 2 && output.length < MIN_TWEET_LENGTH; i += 1) {
+    for (let i = 0; i < fillers.length * 2 && getCoreTweetLength(output) < MIN_TWEET_LENGTH; i += 1) {
         const filler = pick(fillers, seed + i);
         if (!filler) continue;
-        const room = MAX_TWEET_LENGTH - output.length - 1;
+        const room = MAX_RAW_TWEET_LENGTH - output.length - 1;
         if (room <= 0) break;
         const add = filler.slice(0, room).trim();
         if (!add) continue;
         output = `${output} ${add}`.replace(/\s+/g, " ").trim();
     }
 
-    if (output.length < MIN_TWEET_LENGTH) {
-        const room = MAX_TWEET_LENGTH - output.length - 1;
+    if (getCoreTweetLength(output) < MIN_TWEET_LENGTH) {
+        const room = MAX_RAW_TWEET_LENGTH - output.length - 1;
         if (room > 0) {
             const add = "Practical wins for creators shipping daily."
                 .slice(0, room)
@@ -512,12 +524,12 @@ function padToMinimumLength(text, seed = 0) {
 
 function padTowardTargetLength(text, seed = 0) {
     let output = text.trim();
-    if (output.length >= TARGET_TWEET_LENGTH) return output;
+    if (getCoreTweetLength(output) >= TARGET_TWEET_LENGTH) return output;
 
-    for (let i = 0; i < MICRO_FILLERS.length * 2 && output.length < TARGET_TWEET_LENGTH; i += 1) {
+    for (let i = 0; i < MICRO_FILLERS.length * 2 && getCoreTweetLength(output) < TARGET_TWEET_LENGTH; i += 1) {
         const filler = pick(MICRO_FILLERS, seed + i);
         if (!filler) continue;
-        const room = MAX_TWEET_LENGTH - output.length - 1;
+        const room = MAX_RAW_TWEET_LENGTH - output.length - 1;
         if (room <= 0) break;
         const add = filler.slice(0, room).trim();
         if (!add) continue;
@@ -535,7 +547,7 @@ function ensureSentenceEnding(text) {
     if (/#[a-z0-9_]+$/i.test(output)) return output;
     if (/(https?:\/\/\S+|www\.\S+)$/i.test(output)) return output;
 
-    if (output.length < MAX_TWEET_LENGTH) {
+    if (output.length < MAX_RAW_TWEET_LENGTH) {
         output = `${output}.`;
     }
 
@@ -562,7 +574,7 @@ function hardenTweetText(text, seed = 0) {
     output = ensureHashtagRange(output, seed + 6);
     output = ensureCleanEnding(output);
 
-    if (output.length < MIN_TWEET_LENGTH) {
+    if (getCoreTweetLength(output) < MIN_TWEET_LENGTH) {
         output = padTowardTargetLength(output, seed + 7);
         output = padToMinimumLength(output, seed + 8);
         output = ensureRequiredTokens(output, seed + 12);
@@ -573,18 +585,18 @@ function hardenTweetText(text, seed = 0) {
         output = ensureHashtagRange(output, seed + 9);
     }
 
-    if (output.length < MIN_TWEET_LENGTH) {
-        const room = MAX_TWEET_LENGTH - output.length - 1;
+    if (getCoreTweetLength(output) < MIN_TWEET_LENGTH) {
+        const room = MAX_RAW_TWEET_LENGTH - output.length - 1;
         if (room > 0) {
             const add = "high utility for daily workflows".slice(0, room).trim();
             output = `${output} ${add}`.replace(/\s+/g, " ").trim();
         }
     }
 
-    for (let i = 0; i < 8 && output.length < MIN_TWEET_LENGTH; i += 1) {
+    for (let i = 0; i < 8 && getCoreTweetLength(output) < MIN_TWEET_LENGTH; i += 1) {
         const filler = pick([...MICRO_FILLERS, ...LENGTH_FILLERS], seed + 20 + i);
         if (!filler) break;
-        const room = MAX_TWEET_LENGTH - output.length - 1;
+        const room = MAX_RAW_TWEET_LENGTH - output.length - 1;
         if (room <= 0) break;
         const add = filler.slice(0, room).trim();
         if (!add) break;
@@ -596,7 +608,7 @@ function hardenTweetText(text, seed = 0) {
     output = ensureCleanEnding(output);
     output = trimToMaxLength(output);
 
-    if (output.length < MIN_TWEET_LENGTH) {
+    if (getCoreTweetLength(output) < MIN_TWEET_LENGTH) {
         output = padToMinimumLength(output, seed + 15);
         output = ensureCleanEnding(output);
         output = trimToMaxLength(output);
@@ -614,10 +626,12 @@ function validateTweetText(text) {
         return issues;
     }
 
-    const length = value.length;
+    const length = getCoreTweetLength(value);
+    const rawLength = value.length;
     const hashtags = countHashtags(value);
-    if (length < MIN_TWEET_LENGTH) issues.push(`too short (${length})`);
-    if (length > MAX_TWEET_LENGTH) issues.push(`too long (${length})`);
+    if (length < MIN_TWEET_LENGTH) issues.push(`too short core (${length})`);
+    if (length > MAX_TWEET_LENGTH) issues.push(`too long core (${length})`);
+    if (rawLength > MAX_RAW_TWEET_LENGTH) issues.push(`too long raw (${rawLength})`);
     if (isNewsy(value)) issues.push("newsy framing");
     if (!ONE_WORD_PREFIX_RE.test(value)) issues.push("missing one-word prefix");
     if (!hasValidUrl(value)) issues.push("missing link");
@@ -872,7 +886,7 @@ async function requestTweets({
         "",
         "Task:",
         `Generate ${TARGET_TWEETS} tweets for @AIToolsExplorer.`,
-        `Each tweet must be ${MIN_TWEET_LENGTH}-${MAX_TWEET_LENGTH} chars (target ${TARGET_TWEET_LENGTH}-${MAX_TWEET_LENGTH}).`,
+        `Core tweet text must be ${MIN_TWEET_LENGTH}-${MAX_TWEET_LENGTH} chars after excluding prefix/hashtags/emojis (target ${TARGET_TWEET_LENGTH}-${MAX_TWEET_LENGTH}).`,
         "Every tweet must start with one word prefix + colon (example: INSIGHT: ...).",
         "Do not sound like a journalist or news reporter.",
         "Tweets must be practical AI tool discoveries with links, hashtags, account tags, and emojis.",

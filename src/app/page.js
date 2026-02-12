@@ -230,6 +230,14 @@ export default function Home() {
   const tweetedCount = tweetedStatus.filter(Boolean).length;
   const pendingCount = tweets.length - tweetedCount;
 
+  function coreLength(text) {
+    const value = typeof text === "string" ? text : "";
+    const withoutPrefix = value.replace(/^[A-Z][A-Z0-9]{2,16}:\s*/i, "");
+    const withoutTags = withoutPrefix.replace(/#[a-z0-9_]+/gi, " ");
+    const withoutEmoji = withoutTags.replace(/[\u{1F300}-\u{1FAFF}\u2600-\u27BF]/gu, "");
+    return withoutEmoji.replace(/\s+/g, " ").trim().length;
+  }
+
   async function handleLogout() {
     await fetch("/api/auth", { method: "DELETE" });
     window.location.href = "/login";
@@ -335,9 +343,9 @@ export default function Home() {
               <div className="stat-item">
                 <span className="stat-value">
                   {Math.round(
-                    tweets.reduce((sum, t) => sum + (typeof t === "string" ? t.length : t.text.length), 0) / tweets.length
+                    tweets.reduce((sum, t) => sum + coreLength(typeof t === "string" ? t : t.text), 0) / tweets.length
                   )}
-                </span> avg chars
+                </span> avg core
               </div>
               {generatedAt && (
                 <div className="stat-item">

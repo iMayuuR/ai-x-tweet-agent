@@ -7,8 +7,18 @@ export default function TweetCard({ tweet, index, date, isTweeted, onMarkTweeted
 
     const tweetText = typeof tweet === "string" ? tweet : tweet.text;
     const sourceAge = typeof tweet === "object" ? tweet.sourceAge : "";
-    const charCount = tweetText.length;
-    const isWarning = charCount < 270 || charCount > 275;
+
+    function coreCharCount(text) {
+        const value = typeof text === "string" ? text : "";
+        const withoutPrefix = value.replace(/^[A-Z][A-Z0-9]{2,16}:\s*/i, "");
+        const withoutTags = withoutPrefix.replace(/#[a-z0-9_]+/gi, " ");
+        const withoutEmoji = withoutTags.replace(/[\u{1F300}-\u{1FAFF}\u2600-\u27BF]/gu, "");
+        return withoutEmoji.replace(/\s+/g, " ").trim().length;
+    }
+
+    const rawCharCount = tweetText.length;
+    const effectiveCharCount = coreCharCount(tweetText);
+    const isWarning = effectiveCharCount < 270 || effectiveCharCount > 275;
 
     function freshnessHoursLabel(value) {
         if (!value || typeof value !== "string") return "1h";
@@ -102,8 +112,11 @@ export default function TweetCard({ tweet, index, date, isTweeted, onMarkTweeted
                                 Posted
                             </span>
                         )}
-                        <span className={`text-xs font-mono ${isWarning ? "text-red-400 font-bold" : "text-slate-500"}`}>
-                            {charCount}/270-275
+                        <span
+                            title={`Raw: ${rawCharCount}`}
+                            className={`text-xs font-mono ${isWarning ? "text-red-400 font-bold" : "text-slate-500"}`}
+                        >
+                            {effectiveCharCount}/270-275 core
                         </span>
                     </div>
                 </div>
