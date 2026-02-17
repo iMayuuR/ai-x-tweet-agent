@@ -541,17 +541,19 @@ export async function getTrendingNews() {
     ]);
 
     const now = Date.now() / 1000;
+    // Extend window to 48h to catch more items
     const primary = [...productHunt, ...hackerNews, ...githubSignals, ...communitySignals]
-        .filter((item) => now - item.timestamp <= 86400)
+        .filter((item) => now - item.timestamp <= 172800) // 48h
         .filter((item) => isToolSignalTitle(item.title, item.source))
         .sort((a, b) => b.timestamp - a.timestamp);
 
     let combined = dedupeByTitleAndUrl(primary);
 
-    if (combined.length < 20) {
-        const googleFallback = await fetchGoogleNewsFallback(10);
+    // If less than 15 items, try to fetch from Google News with broader query
+    if (combined.length < 15) {
+        const googleFallback = await fetchGoogleNewsFallback(15);
         const fallbackFresh = googleFallback
-            .filter((item) => now - item.timestamp <= 86400)
+            .filter((item) => now - item.timestamp <= 172800) // 48h
             .filter((item) => isToolSignalTitle(item.title, item.source));
 
         combined = dedupeByTitleAndUrl([...combined, ...fallbackFresh]).sort((a, b) => b.timestamp - a.timestamp);
@@ -574,6 +576,27 @@ export async function getTrendingNews() {
         {
             title: "Perplexity research workflow update",
             url: "https://perplexity.ai",
+            source: "Fallback",
+            timeAgo: "fresh",
+            timestamp: Math.floor(Date.now() / 1000),
+        },
+        {
+            title: "Google Gemini 1.5 Pro update",
+            url: "https://gemini.google.com",
+            source: "Fallback",
+            timeAgo: "fresh",
+            timestamp: Math.floor(Date.now() / 1000),
+        },
+        {
+            title: "Anthropic Claude 3.5 Sonnet update",
+            url: "https://claude.ai",
+            source: "Fallback",
+            timeAgo: "fresh",
+            timestamp: Math.floor(Date.now() / 1000),
+        },
+        {
+            title: "OpenAI ChatGPT canvas workflows",
+            url: "https://chatgpt.com",
             source: "Fallback",
             timeAgo: "fresh",
             timestamp: Math.floor(Date.now() / 1000),

@@ -85,6 +85,13 @@ const TOOL_LIBRARY = [
     { name: "Hugging Face", handle: "@huggingface", link: "https://huggingface.co", audience: "AI engineers", useCase: "test and compare open models for real tasks", capability: "host, discover, and run open-source AI models fast" },
     { name: "GitHub Copilot", handle: "@GitHubCopilot", link: "https://github.com/features/copilot", audience: "software teams", useCase: "speed up PR cycles and repetitive implementation work", capability: "assist coding workflows directly in the IDE" },
     { name: "Vercel AI SDK", handle: "@vercel", link: "https://sdk.vercel.ai", audience: "app builders", useCase: "ship production AI features with streaming UX quickly", capability: "provide primitives to build reliable AI apps faster" },
+    { name: "Replit", handle: "@Replit", link: "https://replit.com", audience: "full-stack devs", useCase: "deploy prototypes from a single browser tab", capability: "code, collaborate, and ship in one unified environment" },
+    { name: "Canva", handle: "@canva", link: "https://canva.com", audience: "marketers", useCase: "create on-brand assets without deep design skills", capability: "generate and edit visual content with simple AI tools" },
+    { name: "Mistral", handle: "@MistralAI", link: "https://mistral.ai", audience: "developers", useCase: "run efficient open models on local hardware", capability: "deploy high-performance models with low latency" },
+    { name: "Synthesia", handle: "@synthesiaIO", link: "https://www.synthesia.io", audience: "L&D teams", useCase: "turn text scripts into training videos instantly", capability: "generate AI avatars that speak multiple languages" },
+    { name: "Jasper", handle: "@heyjasperai", link: "https://www.jasper.ai", audience: "marketing teams", useCase: "scale blog and social content production", capability: "generate on-brand marketing copy at scale" },
+    { name: "Notion AI", handle: "@NotionHQ", link: "https://www.notion.so", audience: "knowledge workers", useCase: "organize workspace notes into clear summaries", capability: "analyze and generate text directly in your docs" },
+    { name: "Leonardo", handle: "@LeonardoAi_", link: "https://leonardo.ai", audience: "game artists", useCase: "generate assets for game environments quickly", capability: "create consistent visual assets with fine-tuned models" },
 ];
 
 const SYSTEM_PROMPT = `You are @AIToolsExplorer on X.
