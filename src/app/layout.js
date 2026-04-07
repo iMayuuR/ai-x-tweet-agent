@@ -1,23 +1,24 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "AI Tools Explorer | Daily Viral Tweets Generator",
+  title: "AI Social Agent | Multi-Platform Posting",
   description:
-    "Discover the latest AI tools, launches, and updates. Generate 10 viral, ready-to-post tweets daily. Powered by Gemini 2.5 & Multi-Source News Engine (Product Hunt, GitHub, Reddit).",
+    "Generate AI-powered posts and publish to X, Instagram, and Threads. Daily viral content powered by Gemini with multi-platform sharing.",
   keywords: [
-    "AI tweets",
-    "AI tools",
-    "Gemini 2.5",
-    "AI agents",
-    "Product Hunt trends",
-    "GitHub AI",
-    "Twitter AI",
-    "daily content generator",
+    "AI social media",
+    "multi-platform posting",
+    "AI content generator",
+    "Twitter automation",
+    "Instagram sharing",
+    "Threads posts",
+    "Gemini AI",
     "automated social media",
+    "daily content",
+    "AI tools",
   ],
-  authors: [{ name: "AI Tools Explorer" }],
-  creator: "AI Tools Explorer",
-  publisher: "AI Tools Explorer",
+  authors: [{ name: "AI Social Agent" }],
+  creator: "AI Social Agent",
+  publisher: "AI Social Agent",
   alternates: {
     canonical: "https://ai-x-tweet-agent.vercel.app",
   },
@@ -33,18 +34,18 @@ export const metadata = {
   },
   manifest: "/manifest.json",
   openGraph: {
-    title: "AI Tools Explorer | Daily Viral Tweets",
-    description: "Generate 10 practical, viral AI tweets daily. Track launches from Product Hunt, GitHub, and more.",
+    title: "AI Social Agent | Multi-Platform Social Media Tool",
+    description: "Generate AI-powered posts and publish to X, Instagram, Threads. Daily content powered by Gemini.",
     url: "https://ai-x-tweet-agent.vercel.app",
-    siteName: "AI Tools Explorer",
+    siteName: "AI Social Agent",
     locale: "en_US",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "AI Tools Explorer",
-    description: "Daily AI tool discoveries and viral tweet generator. Powered by Gemini.",
-    creator: "@AIToolsExplorer",
+    title: "AI Social Agent",
+    description: "Multi-platform social media posting powered by AI. Generate and post to X, Instagram, Threads.",
+    creator: "@AISocialAgent",
   },
   robots: {
     index: true,
@@ -72,9 +73,10 @@ export default function RootLayout({ children }) {
         <link rel="manifest" href="/manifest.json" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <meta name="apple-mobile-web-app-title" content="X AI Tweet" />
-        <meta name="application-name" content="X AI Tweet" />
+        <meta name="apple-mobile-web-app-title" content="AI Social Agent" />
+        <meta name="application-name" content="AI Social Agent" />
         <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="theme-color" content="#0a0a0f" />
         <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
         <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
         <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
@@ -87,8 +89,8 @@ export default function RootLayout({ children }) {
           <footer className="footer">
             <p className="footer-text">
               Built with ❤️ using Next.js &amp; Google Gemini
-              <br />
-              Tweets are AI-generated. Review before posting.
+              <br className="hidden sm:block" />
+              Multi-platform posting powered by AI • Review before posting
             </p>
           </footer>
         </div>

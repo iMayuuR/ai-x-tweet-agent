@@ -4,12 +4,12 @@ import { getTrendingNews } from "./news";
 const MODEL_NAME = process.env.GEMINI_MODEL || "gemini-2.5-flash"; // Deployed
 
 const TARGET_TWEETS = 10;
-const MAX_TWEET_LENGTH = 275;
+const MAX_TWEET_LENGTH = 268;
 const MAX_RAW_TWEET_LENGTH = 420;
 const X_MAX_TWEET_LENGTH = 280;
 const X_URL_LENGTH = 23;
-const TARGET_X_MIN = 270;
-const TARGET_X_MAX = 275;
+const TARGET_X_MIN = 260;
+const TARGET_X_MAX = 268;
 const MIN_BODY_CORE_LENGTH = 210;
 const TARGET_BODY_CORE_LENGTH = 235;
 const MIN_HASHTAGS = 1;
@@ -118,9 +118,10 @@ Hard rules:
 10) Use emojis naturally.
 11) Include ${MIN_HASHTAGS}-${MAX_HASHTAGS} hashtags in each tweet. Do not overstuff hashtags.
 12) Every tweet must be unique and start differently.
-13) Never output placeholders, incomplete lines, or unfinished sentences.
+13) Never output placeholders, incomplete lines, or unfinished sentences. Every tweet must end with a complete thought.
 14) Never use phrasing like breaking, headline, reported, according to, press release, news.
 15) Use this structure exactly: {HOOK WORD + EMOJI} {MAIN TWEET BODY} {RELEVANT LINK} {HASHTAGS + MENTIONS}.
+16) Always end with a clear ending: either punctuation (., !, ?) or a link/hashtag/mention that provides closure. Never trail off mid-sentence.
 
 Official handles:
 OpenAI=@OpenAI, Google/Gemini=@GoogleAI, Anthropic/Claude=@AnthropicAI, Meta AI=@MetaAI,
@@ -563,8 +564,10 @@ function ensureLinkAndMention(text, seed = 0) {
     }
 
     if (countMentions(output) < 1) {
-        const mention = fallbackTool.handle || "@OpenAI";
-        output = `${output} ${mention}`.replace(/\s+/g, " ").trim();
+        const mention = fallbackTool.handle || (fallbackTool.hashtag ? '' : "@OpenAI");
+        if (mention) {
+            output = `${output} ${mention}`.replace(/\s+/g, " ").trim();
+        }
     }
 
     return output;
@@ -640,9 +643,19 @@ function ensureBodySentence(body = "") {
 }
 
 function composeStructuredTweet({ hook, emoji, body, url, mention, hashtags }) {
-    return `${hook}: ${emoji} ${body} ${url} ${hashtags.join(" ")} ${mention}`
-        .replace(/\s+/g, " ")
-        .trim();
+    const parts = [
+        `${hook}:`,
+        emoji,
+        body,
+        url,
+        ...hashtags,
+    ].filter(part => part && part.trim());
+
+    if (mention && mention.trim()) {
+        parts.push(mention);
+    }
+
+    return parts.join(' ').replace(/\s+/g, ' ').trim();
 }
 
 function formatStructuredTweet(text, seed = 0) {
@@ -658,7 +671,7 @@ function formatStructuredTweet(text, seed = 0) {
     const url = urls[0] || tool.link || "https://chatgpt.com";
 
     const mentionsRaw = dedupeList((text.match(/@[a-z0-9_]+/gi) || []));
-    const mention = mentionsRaw[0] || tool.handle || "@OpenAI";
+    const mention = mentionsRaw[0] || tool.handle || (tool.hashtag ? '' : "@OpenAI");
 
     let hashtags = dedupeList((text.match(/#[a-z0-9_]+/gi) || []));
     if (!hashtags.length) {
@@ -669,6 +682,10 @@ function formatStructuredTweet(text, seed = 0) {
         if (!hashtags.find((tag) => tag.toLowerCase() === extra.toLowerCase())) {
             hashtags.push(extra);
         }
+    }
+    // If tool has no handle but has a hashtag, add it
+    if (!tool.handle && tool.hashtag && !hashtags.includes(tool.hashtag)) {
+        hashtags.push(tool.hashtag);
     }
     hashtags = hashtags.slice(0, MAX_HASHTAGS);
 
@@ -951,6 +968,7 @@ function normalizeTweets(rawTweets = []) {
         return {
             text: hardenTweetText(base, index),
             sourceAge: typeof tweet === "object" ? tweet?.sourceAge || "Fresh" : "Fresh",
+            imageUrl: typeof tweet === "object" ? tweet?.imageUrl : null,
         };
     });
 }
@@ -1001,16 +1019,35 @@ function detectHandle(name = "") {
     if (value.includes("hugging face")) return "@huggingface";
     if (value.includes("vercel")) return "@vercel";
     if (value.includes("copilot") || value.includes("github")) return "@GitHubCopilot";
-    return "";
+    return null; // Return null to trigger hashtag fallback
 }
 
 function buildSignalToolOptions(signals = []) {
     return signals.slice(0, 20).map((signal, index) => {
         const title = cleanSignalTitle(signal?.title || "");
         const name = title.split(/[|:,\-]/)[0]?.trim() || `AI Tool ${index + 1}`;
+        const handle = detectHandle(name);
+
+        // If no handle detected, create hashtag from tool name
+        let hashtag = null;
+        if (!handle) {
+            // Create hashtag from tool name: remove special chars, capitalize words
+            const cleanName = name
+                .toLowerCase()
+                .replace(/[^a-z0-9\s]/g, ' ')
+                .split(/\s+/)
+                .filter(word => word.length > 2)
+                .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                .join('');
+            if (cleanName.length >= 3) {
+                hashtag = `#${cleanName.replace(/\s+/g, '')}`;
+            }
+        }
+
         return {
             name,
-            handle: detectHandle(name),
+            handle,
+            hashtag, // Store fallback hashtag
             link: signal?.url || "https://producthunt.com",
             audience: "builders and creators",
             useCase: "test a practical workflow and share results quickly",
@@ -1031,7 +1068,11 @@ function buildEmergencyTweet(tool, seed = 0) {
     const uniqueTags = [hashtagA, hashtagB].filter((tag, idx, arr) => arr.indexOf(tag) === idx).join(" ");
 
     const base = `${tool.name}${tool.handle ? ` ${tool.handle}` : " @OpenAI"} helps ${tool.audience} with a practical edge: ${tool.capability}. Best use-case: ${tool.useCase}. ${tool.link} ${uniqueTags}`;
-    return hardenTweetText(base, seed + 700);
+    return {
+        text: hardenTweetText(base, seed + 700),
+        sourceAge: normalizeSourceAge(tool?.sourceAge, ((seed % 12) + 1)),
+        imageUrl: null,
+    };
 }
 
 function buildFallbackTweet(tool, index, entropy = 0) {
@@ -1067,7 +1108,11 @@ function buildFallbackTweet(tool, index, entropy = 0) {
     const hype = pick(ENGAGEMENT_LINES, index + entropy);
     const linkLine = `${tool.link}`;
 
-    return hardenTweetText(`${intro} ${linkLine} ${body} ${proof} ${hype} ${hashtags}`, index + entropy);
+    return {
+        text: hardenTweetText(`${intro} ${linkLine} ${body} ${proof} ${hype} ${hashtags}`, index + entropy),
+        sourceAge: normalizeSourceAge(tool?.sourceAge, (index % 12) + 1),
+        imageUrl: null, // Will be generated later
+    };
 }
 
 function buildLocalBackupTweets({ blockedTweets = [], existing = [], signals = [], nowIso = "" }) {
@@ -1079,23 +1124,31 @@ function buildLocalBackupTweets({ blockedTweets = [], existing = [], signals = [
 
     for (let i = 0; i < toolPool.length * 3 && output.length < TARGET_TWEETS; i += 1) {
         const tool = toolPool[i % toolPool.length];
-        const text = buildFallbackTweet(tool, i, entropy);
-        const issues = validateTweetText(text);
-        const duplicateWithOutput = output.some((item) => isNearDuplicate(item.text, text));
-        const duplicateWithHistory = usedTexts.some((item) => isNearDuplicate(item, text));
+        const tweetObj = buildFallbackTweet(tool, i, entropy);
+        const issues = validateTweetText(tweetObj.text);
+        const duplicateWithOutput = output.some((item) => isNearDuplicate(item.text, tweetObj.text));
+        const duplicateWithHistory = usedTexts.some((item) => isNearDuplicate(item, tweetObj.text));
 
         if (!issues.length && !duplicateWithOutput && !duplicateWithHistory) {
-            output.push({ text, sourceAge: normalizeSourceAge(tool?.sourceAge, (i % 12) + 1) });
+            output.push({
+                text: tweetObj.text,
+                sourceAge: normalizeSourceAge(tool?.sourceAge, (i % 12) + 1),
+                imageUrl: tweetObj.imageUrl,
+            });
         }
     }
 
     for (let i = 0; output.length < TARGET_TWEETS && i < 60; i += 1) {
         const tool = toolPool[(i + entropy) % toolPool.length] || TOOL_LIBRARY[i % TOOL_LIBRARY.length];
-        const text = buildFallbackTweet(tool, i + 99, entropy);
-        const duplicateWithOutput = output.some((item) => isNearDuplicate(item.text, text));
-        const duplicateWithHistory = usedTexts.some((item) => isNearDuplicate(item, text));
-        if (!duplicateWithOutput && !duplicateWithHistory && !validateTweetText(text).length) {
-            output.push({ text, sourceAge: normalizeSourceAge(tool?.sourceAge, ((i + 4) % 12) + 1) });
+        const tweetObj = buildFallbackTweet(tool, i + 99, entropy);
+        const duplicateWithOutput = output.some((item) => isNearDuplicate(item.text, tweetObj.text));
+        const duplicateWithHistory = usedTexts.some((item) => isNearDuplicate(item, tweetObj.text));
+        if (!duplicateWithOutput && !duplicateWithHistory && !validateTweetText(tweetObj.text).length) {
+            output.push({
+                text: tweetObj.text,
+                sourceAge: normalizeSourceAge(tool?.sourceAge, ((i + 4) % 12) + 1),
+                imageUrl: tweetObj.imageUrl,
+            });
         }
     }
 
@@ -1120,6 +1173,7 @@ function ensureExactTenTweets({ candidateTweets = [], blockedTweets = [], signal
                     typeof tweet === "object" ? tweet.sourceAge : "",
                     (accepted.length % 12) + 1
                 ),
+                imageUrl: typeof tweet === "object" ? tweet.imageUrl : null,
             });
         }
     };
@@ -1150,6 +1204,7 @@ function ensureExactTenTweets({ candidateTweets = [], blockedTweets = [], signal
                 accepted.push({
                     text,
                     sourceAge: normalizeSourceAge(tool?.sourceAge, ((i + 5) % 12) + 1),
+                    imageUrl: null,
                 });
             }
         }
@@ -1169,6 +1224,7 @@ function ensureExactTenTweets({ candidateTweets = [], blockedTweets = [], signal
             accepted.push({
                 text,
                 sourceAge: normalizeSourceAge(tool?.sourceAge, ((index + 6) % 12) + 1),
+                imageUrl: null,
             });
         }
         rescueGuard += 1;
@@ -1178,13 +1234,14 @@ function ensureExactTenTweets({ candidateTweets = [], blockedTweets = [], signal
     while (accepted.length < TARGET_TWEETS && emergencyGuard < 200) {
         const index = accepted.length + emergencyGuard;
         const tool = TOOL_LIBRARY[(index + 3) % TOOL_LIBRARY.length];
-        const text = buildEmergencyTweet(tool, index + 900);
-        const duplicateWithAccepted = accepted.some((item) => isNearDuplicate(item.text, text));
-        const duplicateWithHistory = historical.some((item) => isNearDuplicate(item, text));
-        if (!duplicateWithAccepted && !duplicateWithHistory && !validateTweetText(text).length) {
+        const tweetObj = buildEmergencyTweet(tool, index + 900);
+        const duplicateWithAccepted = accepted.some((item) => isNearDuplicate(item.text, tweetObj.text));
+        const duplicateWithHistory = historical.some((item) => isNearDuplicate(item, tweetObj.text));
+        if (!duplicateWithAccepted && !duplicateWithHistory && !validateTweetText(tweetObj.text).length) {
             accepted.push({
-                text,
+                text: tweetObj.text,
                 sourceAge: normalizeSourceAge(tool?.sourceAge, ((index + 7) % 12) + 1),
+                imageUrl: tweetObj.imageUrl,
             });
         }
         emergencyGuard += 1;
@@ -1194,11 +1251,12 @@ function ensureExactTenTweets({ candidateTweets = [], blockedTweets = [], signal
     while (accepted.length < TARGET_TWEETS && hardFillGuard < 200) {
         const index = accepted.length + hardFillGuard;
         const tool = TOOL_LIBRARY[(index + 5) % TOOL_LIBRARY.length];
-        const text = buildEmergencyTweet(tool, index + 1200);
-        if (!validateTweetText(text).length) {
+        const tweetObj = buildEmergencyTweet(tool, index + 1200);
+        if (!validateTweetText(tweetObj.text).length) {
             accepted.push({
-                text,
+                text: tweetObj.text,
                 sourceAge: normalizeSourceAge(tool?.sourceAge, ((index + 8) % 12) + 1),
+                imageUrl: tweetObj.imageUrl,
             });
         }
         hardFillGuard += 1;
@@ -1343,12 +1401,13 @@ export async function generateTweets(options = {}) {
             const issues = collectIssues(candidateTweets, blockedTweets);
 
             if (!issues.length) {
-                return ensureExactTenTweets({
+                let tweets = ensureExactTenTweets({
                     candidateTweets,
                     blockedTweets,
                     signals,
                     nowIso,
                 });
+                return tweets;
             }
 
             retryFeedback = issues.join("\n");
@@ -1359,10 +1418,12 @@ export async function generateTweets(options = {}) {
         }
     }
 
-    return ensureExactTenTweets({
+    let tweets = ensureExactTenTweets({
         candidateTweets: lastCandidate,
         blockedTweets,
         signals,
         nowIso,
     });
+
+    return tweets;
 }

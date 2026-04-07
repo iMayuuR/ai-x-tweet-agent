@@ -4,7 +4,7 @@ export function middleware(request) {
     const { pathname } = request.nextUrl;
 
     // Allow public paths
-    const publicPaths = ["/login", "/api/auth", "/api/cron", "/api/daily"];
+    const publicPaths = ["/login", "/api/auth", "/api/cron", "/api/daily", "/api/config", "/api/stats"];
     if (publicPaths.some((p) => pathname.startsWith(p))) {
         return NextResponse.next();
     }

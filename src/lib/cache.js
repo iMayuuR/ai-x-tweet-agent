@@ -13,6 +13,7 @@ const getCacheDir = () => {
 };
 
 const CACHE_DIR = getCacheDir();
+const STATS_FILE = "stats.json";
 
 async function ensureCacheDir() {
     try {
@@ -34,6 +35,7 @@ function normalizeTweet(tweet) {
             text: tweet,
             sourceAge: "1h ago",
             posted: false,
+            postedTo: [],
         };
     }
 
@@ -41,6 +43,7 @@ function normalizeTweet(tweet) {
         text: tweet?.text || "",
         sourceAge: tweet?.sourceAge || "1h ago",
         posted: Boolean(tweet?.posted),
+        postedTo: Array.isArray(tweet?.postedTo) ? tweet.postedTo : [],
     };
 }
 
@@ -209,7 +212,7 @@ export async function getLastDaysTweets(days = 3) {
     }
 }
 
-export async function markTweeted(dateStr, index) {
+export async function markTweeted(dateStr, index, platform = null) {
     await ensureCacheDir();
     if (!dateStr || typeof index !== "number") {
         return { ok: false, error: "Missing date or index" };
@@ -224,9 +227,25 @@ export async function markTweeted(dateStr, index) {
             return { ok: false, error: "Tweet index not found" };
         }
 
-        tweets[index].posted = !tweets[index].posted;
+        // Ensure postedTo array exists
+        if (!tweets[index].postedTo) {
+            tweets[index].postedTo = [];
+        }
+
+        if (platform) {
+            // Add platform to postedTo if not already there, and set posted to true
+            if (!tweets[index].postedTo.includes(platform)) {
+                tweets[index].postedTo.push(platform);
+            }
+            tweets[index].posted = true;
+        } else {
+            // Legacy toggle behavior (for manual mark button)
+            tweets[index].posted = !tweets[index].posted;
+            // Note: when toggling off, we might want to clear postedTo? But we won't.
+        }
+
         await fs.writeFile(filePath, JSON.stringify(tweets, null, 2));
-        return { ok: true, posted: tweets[index].posted };
+        return { ok: true, posted: tweets[index].posted, postedTo: tweets[index].postedTo };
     } catch (error) {
         console.error("Mark tweeted error:", error);
         return { ok: false, error: "Failed to update tweet status" };
@@ -276,4 +295,149 @@ export async function cleanupOldTweets(keepDays = 30) {
         console.warn("Cleanup error:", error);
         return 0;
     }
+}
+
+// ==================== Stats Tracking ====================
+
+async function getStatsPath() {
+    await ensureCacheDir();
+    return path.join(CACHE_DIR, STATS_FILE);
+}
+
+async function readStatsFile() {
+    try {
+        const statsPath = await getStatsPath();
+        const data = await fs.readFile(statsPath, 'utf-8');
+        return JSON.parse(data);
+    } catch {
+        return {
+            totalPosts: 0,
+            platformStats: { x: 0, instagram: 0, threads: 0 },
+            dailyStats: {},
+            lastReset: new Date().toISOString(),
+        };
+    }
+}
+
+async function writeStatsFile(stats) {
+    await ensureCacheDir();
+    const statsPath = await getStatsPath();
+    await fs.writeFile(statsPath, JSON.stringify(stats, null, 2));
+}
+
+/**
+ * Record a successful post to stats
+ */
+export async function recordPost(platform, tweetDate = null, tweetIndex = null) {
+    try {
+        const stats = await readStatsFile();
+
+        // Update total
+        stats.totalPosts += 1;
+
+        // Update platform-specific
+        if (stats.platformStats[platform]) {
+            stats.platformStats[platform] += 1;
+        } else {
+            stats.platformStats[platform] = 1;
+        }
+
+        // Update daily
+        const today = new Date().toISOString().split('T')[0];
+        stats.dailyStats[today] = (stats.dailyStats[today] || 0) + 1;
+
+        // Optionally track which tweet was posted
+        if (tweetDate && typeof tweetIndex === 'number') {
+            if (!stats.tweetHistory) stats.tweetHistory = [];
+            stats.tweetHistory.push({
+                platform,
+                date: tweetDate,
+                index: tweetIndex,
+                timestamp: new Date().toISOString(),
+            });
+        }
+
+        await writeStatsFile(stats);
+        return stats;
+    } catch (error) {
+        console.error('Failed to record post:', error);
+        return null;
+    }
+}
+
+/**
+ * Get posting statistics
+ */
+export async function getPostStats(days = 30) {
+    try {
+        const stats = await readStatsFile();
+
+        // Calculate date range
+        const now = new Date();
+        const cutoff = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+        const cutoffDate = cutoff.toISOString().split('T')[0];
+
+        // Filter daily stats by date range
+        const filteredDailyStats = {};
+        let recentTotal = 0;
+        Object.entries(stats.dailyStats).forEach(([date, count]) => {
+            if (date >= cutoffDate) {
+                filteredDailyStats[date] = count;
+                recentTotal += count;
+            }
+        });
+
+        return {
+            totalPosts: stats.totalPosts,
+            platformStats: stats.platformStats,
+            dailyStats: filteredDailyStats,
+            recentPosts: recentTotal,
+            lastReset: stats.lastReset,
+        };
+    } catch (error) {
+        console.error('Failed to get stats:', error);
+        return {
+            totalPosts: 0,
+            platformStats: { x: 0, instagram: 0, threads: 0 },
+            dailyStats: {},
+            recentPosts: 0,
+        };
+    }
+}
+
+/**
+ * Reset statistics
+ */
+export async function resetStats() {
+    const stats = {
+        totalPosts: 0,
+        platformStats: { x: 0, instagram: 0, threads: 0 },
+        dailyStats: {},
+        lastReset: new Date().toISOString(),
+    };
+    await writeStatsFile(stats);
+    return stats;
+}
+
+/**
+ * Get platform-specific success rate
+ */
+export async function getPlatformSuccessRate() {
+    const stats = await readStatsFile();
+    const total = stats.totalPosts || 1; // avoid division by zero
+
+    return {
+        x: {
+            posts: stats.platformStats.x || 0,
+            percentage: Math.round(((stats.platformStats.x || 0) / total) * 100),
+        },
+        instagram: {
+            posts: stats.platformStats.instagram || 0,
+            percentage: Math.round(((stats.platformStats.instagram || 0) / total) * 100),
+        },
+        threads: {
+            posts: stats.platformStats.threads || 0,
+            percentage: Math.round(((stats.platformStats.threads || 0) / total) * 100),
+        },
+    };
 }

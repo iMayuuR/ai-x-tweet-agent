@@ -164,15 +164,15 @@ export default function Header({
 
             <div className="header-badge">
                 <span className="header-badge-dot"></span>
-                AI-Powered
+                Multi-Platform
             </div>
 
-            <h1>AI Tools Explorer</h1>
+            <h1>AI Social Agent</h1>
 
             <p className="header-subtitle">
-                Daily viral AI tweets and tool discoveries
-                <br />
-                Copy or post directly to X.
+                Generate & post to X, Instagram, Threads
+                <br className="hidden sm:block" />
+                AI-powered content for multiple platforms
             </p>
 
             {formattedDate && (
