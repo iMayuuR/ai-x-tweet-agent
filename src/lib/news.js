@@ -142,17 +142,27 @@ const COMMUNITY_RSS_SOURCES = [
     { source: "Medium-GenAI", url: "https://medium.com/feed/tag/generative-ai", limit: 14 },
     { source: "Medium-AIAgents", url: "https://medium.com/feed/tag/ai-agents", limit: 12 },
     { source: "Medium-LLM", url: "https://medium.com/feed/tag/llm", limit: 12 },
+    { source: "Medium-PromptEng", url: "https://medium.com/feed/tag/prompt-engineering", limit: 10 },
+    { source: "Medium-AICoding", url: "https://medium.com/feed/tag/ai-coding", limit: 10 },
     { source: "Devto-AI", url: "https://dev.to/feed/tag/ai", limit: 14 },
     { source: "Devto-ML", url: "https://dev.to/feed/tag/machine-learning", limit: 12 },
+    { source: "Devto-GPT", url: "https://dev.to/feed/tag/gpt", limit: 10 },
+    { source: "Devto-OpenSource", url: "https://dev.to/feed/tag/open-source", limit: 10 },
     { source: "Reddit-ChatGPT", url: "https://www.reddit.com/r/ChatGPT/.rss", limit: 18 },
     { source: "Reddit-AI", url: "https://www.reddit.com/r/ArtificialInteligence/.rss", limit: 18 },
     { source: "Reddit-LocalLLaMA", url: "https://www.reddit.com/r/LocalLLaMA/.rss", limit: 16 },
     { source: "Reddit-StableDiffusion", url: "https://www.reddit.com/r/StableDiffusion/.rss", limit: 16 },
+    { source: "Reddit-Artificial", url: "https://www.reddit.com/r/technology/.rss", limit: 10 },
+    { source: "Reddit-MachineLearning", url: "https://www.reddit.com/r/MachineLearning/.rss", limit: 12 },
     { source: "TowardsDataScience", url: "https://towardsdatascience.com/feed", limit: 12 },
     { source: "AnalyticsVidhya", url: "https://www.analyticsvidhya.com/blog/feed/", limit: 12 },
     { source: "OpenAI-News", url: "https://openai.com/news/rss.xml", limit: 10 },
     { source: "GoogleAI-Blog", url: "https://blog.google/technology/ai/rss/", limit: 10 },
     { source: "Anthropic-News", url: "https://www.anthropic.com/news/rss.xml", limit: 10 },
+    { source: "HuggingFace-Blog", url: "https://huggingface.co/blog/rss.xml", limit: 10 },
+    { source: "MIT-News", url: "https://news.mit.edu/rss/feed/topic/artificial-intelligence", limit: 8 },
+    { source: "Wired-AI", url: "https://www.wired.com/feed/tag/ai/latest/rss", limit: 10 },
+    { source: "TechCrunch-AI", url: "https://techcrunch.com/category/artificial-intelligence/feed/", limit: 10 },
 ];
 
 function isToolSignalTitle(title, source = "") {
@@ -410,35 +420,106 @@ async function fetchGitHubAITools(limit = 20) {
 /**
  * Fetch GitHub trending repos for AI category
  */
-async function fetchGitHubTrending(limit = 15) {
-    try {
-        const response = await fetch("https://api.github.com/search/repositories?q=ai+OR+llm+OR+gpt+OR+machine-learning+OR+gpt4+created:>2024-12-01&sort=stars&order=desc&per_page=20", {
-            next: { revalidate: 1800 },
-            headers: {
-                "User-Agent": "ai-x-tweet-agent/1.0",
-                Accept: "application/vnd.github+json",
-            },
-        });
+async function fetchGitHubTrending(limit = 20) {
+    const results = [];
+    const queries = [
+        "ai OR llm OR gpt OR chatbot created:>2024",
+        "machine-learning OR tensorflow OR pytorch created:>2024",
+        "openai OR anthropic OR gemini-api created:>2024",
+        "copilot OR code-assistant OR ai-coder created:>2024",
+    ];
 
-        if (!response.ok) return [];
-        const data = await response.json();
-        const items = Array.isArray(data?.items) ? data.items : [];
+    for (const query of queries.slice(0, 2)) {
+        try {
+            const url = `https://api.github.com/search/repositories?q=${encodeURIComponent(query)}&sort=stars&order=desc&per_page=15`;
+            const response = await fetch(url, {
+                next: { revalidate: 1800 },
+                headers: {
+                    "User-Agent": "ai-x-tweet-agent/1.0",
+                    Accept: "application/vnd.github+json",
+                },
+            });
 
-        return items.slice(0, limit).map((repo) => {
-            const createdAt = new Date(repo.created_at).getTime();
-            return {
-                title: `${repo.full_name} - ${repo.description || "AI tool"}`,
-                url: repo.html_url,
-                source: "GitHub-Trending",
-                timeAgo: getTimeAgo(createdAt),
-                timestamp: Math.floor(createdAt / 1000),
-                stars: repo.stargazers_count,
-            };
-        });
-    } catch (error) {
-        console.error("GitHub trending fetch error:", error);
-        return [];
+            if (response.ok) {
+                const data = await response.json();
+                const items = Array.isArray(data?.items) ? data.items : [];
+                results.push(...items);
+            }
+        } catch (e) {
+            console.error("GitHub trending query error:", e);
+        }
     }
+
+    const seen = new Set();
+    const deduped = results.filter(repo => {
+        if (seen.has(repo.full_name)) return false;
+        seen.add(repo.full_name);
+        return true;
+    });
+
+    return deduped.slice(0, limit).map((repo) => {
+        const createdAt = new Date(repo.created_at).getTime();
+        const updatedAt = new Date(repo.updated_at).getTime();
+        return {
+            title: `${repo.full_name} - ${repo.description || "AI tool"}`,
+            url: repo.html_url,
+            source: "GitHub-Trending",
+            timeAgo: getTimeAgo(updatedAt),
+            timestamp: Math.floor(updatedAt / 1000),
+            stars: repo.stargazers_count,
+        };
+    });
+}
+
+/**
+ * Fetch newly created AI repos from last 7 days
+ */
+async function fetchGitHubFreshRepos(limit = 20) {
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+    const results = [];
+
+    const topics = ["ai", "llm", "gpt", "openai", "chatbot", "machine-learning", "ai-agent", "rag"];
+
+    for (const topic of topics.slice(0, 3)) {
+        try {
+            const query = `topic:${topic} created:>=${sevenDaysAgo} stars:>5`;
+            const url = `https://api.github.com/search/repositories?q=${encodeURIComponent(query)}&sort=created&order=desc&per_page=12`;
+            const response = await fetch(url, {
+                next: { revalidate: 3600 },
+                headers: {
+                    "User-Agent": "ai-x-tweet-agent/1.0",
+                    Accept: "application/vnd.github+json",
+                },
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                const items = Array.isArray(data?.items) ? data.items : [];
+                results.push(...items);
+            }
+        } catch (e) {
+            console.error("GitHub fresh repos error:", e);
+        }
+    }
+
+    const seen = new Set();
+    const deduped = results.filter(repo => {
+        if (seen.has(repo.full_name)) return false;
+        seen.add(repo.full_name);
+        return true;
+    });
+
+    return deduped.slice(0, limit).map((repo) => {
+        const createdAt = new Date(repo.created_at).getTime();
+        return {
+            title: `${repo.full_name} - ${repo.description || "New AI repo"}`,
+            url: repo.html_url,
+            source: "GitHub-Fresh",
+            timeAgo: getTimeAgo(createdAt),
+            timestamp: Math.floor(createdAt / 1000),
+            stars: repo.stargazers_count,
+        };
+    });
 }
 
 /**
@@ -553,24 +634,37 @@ function dedupeByTitleAndUrl(items = []) {
 
 function diversifyBySource(items = []) {
     const caps = {
-        GitHub: 7,
-        HackerNews: 8,
-        ProductHunt: 12,
+        GitHub: 10,
+        "GitHub-Fresh": 8,
+        "GitHub-Trending": 8,
+        HackerNews: 10,
+        "HackerNews-Ask": 5,
+        ProductHunt: 15,
         "Devto-AI": 8,
         "Devto-ML": 7,
+        "Devto-GPT": 5,
+        "Devto-OpenSource": 5,
         "Medium-AITools": 7,
         "Medium-GenAI": 7,
         "Medium-AIAgents": 7,
         "Medium-LLM": 6,
+        "Medium-PromptEng": 5,
+        "Medium-AICoding": 5,
         "Reddit-AI": 7,
         "Reddit-ChatGPT": 7,
         "Reddit-LocalLLaMA": 7,
         "Reddit-StableDiffusion": 7,
+        "Reddit-MachineLearning": 5,
+        "Reddit-Artificial": 5,
         TowardsDataScience: 6,
         AnalyticsVidhya: 6,
         "OpenAI-News": 6,
         "GoogleAI-Blog": 6,
         "Anthropic-News": 6,
+        "HuggingFace-Blog": 5,
+        "MIT-News": 5,
+        "Wired-AI": 5,
+        "TechCrunch-AI": 5,
         GoogleNewsFallback: 8,
     };
 
@@ -624,12 +718,13 @@ function prioritizeSources(items = []) {
  * Returns empty array if no fresh content - caller should handle this.
  */
 export async function getTrendingNews() {
-    const [productHunt, hackerNews, hackerAsk, githubSignals, githubTrending, communitySignals] = await Promise.all([
+    const [productHunt, hackerNews, hackerAsk, githubSignals, githubTrending, githubFresh, communitySignals] = await Promise.all([
         fetchProductHuntFeed(20),
         fetchHackerNews(25),
         fetchHackerNewsAsk(10),
-        fetchGitHubAITools(20),
-        fetchGitHubTrending(15),
+        fetchGitHubAITools(25),
+        fetchGitHubTrending(20),
+        fetchGitHubFreshRepos(20),
         fetchCommunityRssToolSignals(),
     ]);
 
@@ -643,6 +738,7 @@ export async function getTrendingNews() {
         ...hackerAsk,
         ...githubSignals,
         ...githubTrending,
+        ...githubFresh,
         ...communitySignals,
     ];
 

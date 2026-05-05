@@ -1314,7 +1314,29 @@ function buildSmartBackupTweets(signals, blockedTweets, startSeed = 0) {
         if (match) usedTools.add(match[1].toLowerCase());
     });
 
-    const knownTools = ["chatgpt", "claude", "gemini", "cursor", "perplexity", "midjourney", "suno", "elevenlabs", "runway", "huggingface", "vercel", "replit", "copilot"];
+    const knownTools = ["chatgpt", "claude", "gemini", "cursor", "perplexity", "midjourney", "suno", "elevenlabs", "runway", "huggingface", "vercel", "replit", "copilot", "mistral", "anthropic", "openai", "google"];
+
+    const knownHandles = {
+        "chatgpt": "@OpenAI",
+        "openai": "@OpenAI",
+        "claude": "@AnthropicAI",
+        "anthropic": "@AnthropicAI",
+        "gemini": "@GoogleAI",
+        "google": "@GoogleAI",
+        "cursor": "@cursor_ai",
+        "perplexity": "@perplexity_ai",
+        "midjourney": "@midjourney",
+        "runway": "@runwayml",
+        "suno": "@suno_ai_",
+        "elevenlabs": "@elevenlabsio",
+        "huggingface": "@huggingface",
+        "vercel": "@vercel",
+        "replit": "@Replit",
+        "copilot": "@GitHubCopilot",
+        "mistral": "@MistralAI",
+        "meta": "@MetaAI",
+        "stability": "@StabilityAI",
+    };
 
     signals.forEach((signal, idx) => {
         const title = signal.title || "";
@@ -1331,10 +1353,13 @@ function buildSmartBackupTweets(signals, blockedTweets, startSeed = 0) {
         if (usedTools.has(toolKey)) return;
         usedTools.add(toolKey);
 
-        const source = signal.source || "Unknown";
-        const sourceTag = source.includes("GitHub") ? "[GitHub]" :
-                         source.includes("Hacker") ? "[HackerNews]" :
-                         source.includes("Product") ? "[ProductHunt]" : "[AI]";
+        let mention = "";
+        for (const [key, handle] of Object.entries(knownHandles)) {
+            if (name.includes(key)) {
+                mention = handle;
+                break;
+            }
+        }
 
         const hashtags = getContentRelevantHashtags(title, startSeed + idx);
         const url = signal.url || "https://github.com";
@@ -1343,7 +1368,10 @@ function buildSmartBackupTweets(signals, blockedTweets, startSeed = 0) {
         const toolName = title.split(/[|:,\-]/)[0]?.trim() || "New Tool";
         const body = title.length > 80 ? title.slice(0, 80) + "..." : title;
 
-        const text = `${hook}: 🚀 ${body} ${sourceTag} ${url} ${hashtags.slice(0, 2).join(" ")}`;
+        let text = `${hook}: 🚀 ${body} ${url} ${hashtags.slice(0, 2).join(" ")}`;
+        if (mention) {
+            text = `${text} ${mention}`;
+        }
 
         tweets.push({
             text: hardenTweetText(text, startSeed + idx + 200),
@@ -1376,16 +1404,11 @@ function buildSignalBasedTweets(signals, blockedTweets, startSeed = 0) {
         if (usedTools.has(toolKey)) return;
         usedTools.add(toolKey);
 
-        const source = signal.source || "Unknown";
-        const sourceTag = source.includes("GitHub") ? "[GitHub]" :
-                         source.includes("Hacker") ? "[HackerNews]" :
-                         source.includes("Product") ? "[ProductHunt]" : "[AI]";
-
         const hashtags = getContentRelevantHashtags(signal.title || "", startSeed + idx);
         const url = signal.url || "https://github.com";
         const hook = pick(EXPERT_HOOK_WORDS, startSeed + idx) || "FRESH";
 
-        const body = `${toolName} ${sourceTag} - ${signal.title?.slice(0, 100) || "New AI tool"}`;
+        const body = signal.title?.slice(0, 100) || "New AI tool discovered";
         const text = `${hook}: 🚀 ${body} ${url} ${hashtags.slice(0, 2).join(" ")}`;
 
         tweets.push({
