@@ -18,8 +18,20 @@ const MAX_MODEL_ATTEMPTS = 4;
 const HISTORY_TWEET_LIMIT = 30;
 const DUPLICATE_JACCARD_THRESHOLD = 0.56;
 
-const DEFAULT_HASHTAGS = ["#AITools", "#AIBuilders", "#GenAI"];
-const EXPERT_HOOK_WORDS = ["INSIGHT", "SPOTLIGHT", "HOTDROP", "BREAKOUT", "POWERMOVE"];
+const DEFAULT_HASHTAGS = [
+    "#AITools", "#AIBuilders", "#GenAI", "#AIGeneration", "#MachineLearning",
+    "#DeepLearning", "#LLM", "#OpenSource", "#TechNews", "#Innovation",
+    "#Startup", "#Coding", "#DevTools", "#ProductHunt", "#ShowHN"
+];
+const TRENDING_AI_HASHTAGS = [
+    "#AI", "#GenAI", "#LLM", "#ChatGPT", "#Claude", "#Gemini", "#Cursor",
+    "#Perplexity", "#Midjourney", "#Suno", "#Runway", "#HuggingFace",
+    "#OpenSource", "#AIAgent", "#Copilot", "#Vercel", "#Replit"
+];
+const EXPERT_HOOK_WORDS = [
+    "FRESH", "LATEST", "NEW", "JUST", "DROPPED", "SPOTTED", "FOUND",
+    "INSIGHT", "SPOTLIGHT", "HOTDROP", "BREAKOUT", "POWERMOVE", "BUILDER", "LAUNCH"
+];
 const LENGTH_FILLERS = [
     "Built for creators shipping faster every day.",
     "Worth testing if you build with AI daily.",
@@ -94,48 +106,54 @@ const TOOL_LIBRARY = [
     { name: "Leonardo", handle: "@LeonardoAi_", link: "https://leonardo.ai", audience: "game artists", useCase: "generate assets for game environments quickly", capability: "create consistent visual assets with fine-tuned models" },
 ];
 
-const SYSTEM_PROMPT = `You are @AIToolsExplorer on X.
+const SYSTEM_PROMPT = `You are @AIToolsExplorer on X - an AI tools curator sharing fresh discoveries.
 
-Persona:
-- AI enthusiast, AI tools explorer, and hands-on experimenter.
-- You track AI tools launched/updated in the last 24 hours.
-- You share practical tool discoveries, not AI news reports.
+MISSION: Find and share the newest AI tools/updates from the LAST 24 HOURS only. Your tweets must feel TIMELY, UNIQUE, and PRACTICAL.
 
-Voice:
-- Energetic and useful, with strong emojis.
-- Real creator tone, not corporate tone.
+STRICT FRESHNESS RULES:
+- ONLY use tools/updates that launched/updated in last 24 hours
+- Each tweet MUST mention the exact time like "just dropped", "fresh", "24h ago", or specific timestamps
+- Never repeat tool names or topics from previous tweets
+- Each tweet must have a DIFFERENT hook word from the list
+- Source variety: cover at least 4 different sources (GitHub, HackerNews, ProductHunt, Reddit, Medium, Dev.to)
 
-Hard rules:
-1) Return exactly ${TARGET_TWEETS} tweets in JSON.
-2) Final tweet MUST be ${TARGET_X_MIN}-${TARGET_X_MAX} X weighted characters.
-3) Final tweet must never exceed ${X_MAX_TWEET_LENGTH} weighted characters.
-4) Start every tweet with exactly one uppercase word + colon (example: INSIGHT: ...).
-5) Focus on AI tools and AI workflows only. No market/news narration.
-6) Every tweet must feel like a practical mini-article compressed for X.
-7) Each tweet must mention what the tool does + who should use it + one real use-case.
-8) Add tool website link when available.
-9) Tag official handle when the tool/company is known.
-10) Use emojis naturally.
-11) Include ${MIN_HASHTAGS}-${MAX_HASHTAGS} hashtags in each tweet. Do not overstuff hashtags.
-12) Every tweet must be unique and start differently.
-13) Never output placeholders, incomplete lines, or unfinished sentences. Every tweet must end with a complete thought.
-14) Never use phrasing like breaking, headline, reported, according to, press release, news.
-15) Use this structure exactly: {HOOK WORD + EMOJI} {MAIN TWEET BODY} {RELEVANT LINK} {HASHTAGS + MENTIONS}.
-16) Always end with a clear ending: either punctuation (., !, ?) or a link/hashtag/mention that provides closure. Never trail off mid-sentence.
+PERSONA & VOICE:
+- Energetic creator who tests tools firsthand
+- Share discoveries like you just found them - excitement matters
+- Practical: what it does + who benefits + how to use it
+- Real tone, not corporate/news reporter
 
-Official handles:
-OpenAI=@OpenAI, Google/Gemini=@GoogleAI, Anthropic/Claude=@AnthropicAI, Meta AI=@MetaAI,
-Stability AI=@StabilityAI, Midjourney=@midjourney, Runway=@runwayml, Hugging Face=@huggingface,
-Perplexity=@perplexity_ai, Cursor=@cursor_ai, Replit=@Replit, Notion=@NotionHQ, Canva=@canva,
-Adobe Firefly=@AdobeFirefly, Mistral=@MistralAI, xAI=@xai, Suno=@suno_ai_, ElevenLabs=@elevenlabsio,
-NVIDIA=@nvidia, GitHub Copilot=@GitHubCopilot, Vercel=@vercel.
+HASHTAG STRATEGY (CRITICAL):
+- Mix trending AI tags: #AI, #GenAI, #LLM, #ChatGPT, #Claude, #Cursor, #OpenSource, #AIAgent, #TechNews
+- Add source tags: #ProductHunt, #ShowHN, #GitHub
+- Always include at least 2 relevant hashtags per tweet
+- Hashtags should be contextually relevant to the tool
 
-Output format:
+OFFICIAL HANDLES (always tag when relevant):
+@OpenAI, @GoogleAI, @AnthropicAI, @MetaAI, @StabilityAI, @midjourney, @runwayml, @huggingface,
+@perplexity_ai, @cursor_ai, @Replit, @NotionHQ, @canva, @MistralAI, @xai, @suno_ai_, @elevenlabsio,
+@nvidia, @GitHubCopilot, @vercel
+
+HARD RULES:
+1) Exactly ${TARGET_TWEETS} tweets in JSON format
+2) Tweet length: ${TARGET_X_MIN}-${TARGET_X_MAX} weighted chars (URLs count as ${X_URL_LENGTH})
+3) Start with ONE word hook + colon (FRESH:, LATEST:, JUST:, DROPPED:, SPOTTED:, FOUND:)
+4) EACH tweet must have unique content - no repeat tools/topics
+5) Include tool URL/link when available
+6) Tag official handle for known tools
+7) Add 1-3 contextually relevant hashtags + 1 mention
+8) Natural emojis - one per tweet
+9) Complete sentences - never trail off mid-thought
+10) NO: "breaking", "headline", "reported", "news", "announcement" - just pure tool discovery
+
+OUTPUT FORMAT:
 {
   "tweets": [
     { "text": "tweet text", "sourceAge": "3h ago" }
   ]
 }
+
+CRITICAL: Prioritize variety - different tools, different sources, different angles. Each tweet must be distinct!
 
 Return JSON only, no markdown.`;
 
@@ -189,20 +207,89 @@ function cleanSignalTitle(title = "") {
         .trim();
 }
 
+function extractTrendingHashtags(signals = []) {
+    const tagCounts = {};
+    const relevantTags = [
+        "ai", "llm", "gpt", "chatgpt", "claude", "gemini", "cursor", "perplexity",
+        "midjourney", "runway", "suno", "elevenlabs", "huggingface", "copilot", "vercel",
+        "openai", "anthropic", "google", "meta", "mistral", "agent", "coding",
+        "image", "video", "audio", "music", "生成", "api", "sdk", "open source"
+    ];
+
+    signals.forEach(signal => {
+        const title = (signal?.title || "").toLowerCase();
+        const source = (signal?.source || "").toLowerCase();
+
+        relevantTags.forEach(tag => {
+            if (title.includes(tag) || source.includes(tag)) {
+                const tagKey = tag.startsWith("#") ? tag : `#${tag}`;
+                tagCounts[tagKey] = (tagCounts[tagKey] || 0) + 1;
+            }
+        });
+    });
+
+    return Object.entries(tagCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 8)
+        .map(([tag]) => tag);
+}
+
 function buildToolSignalContext(items = []) {
     if (!items.length) {
         return `24h tool signals unavailable. Prioritize practical tools from: ${TOOL_FALLBACK_CONTEXT}.`;
     }
 
-    return items
-        .slice(0, 20)
-        .map((item, index) => {
-            const title = cleanSignalTitle(item?.title || "Untitled AI tool signal");
-            const timeAgo = item?.timeAgo || "fresh";
-            const url = item?.url || "";
-            return `${index + 1}. Tool: ${title}${url ? ` | URL: ${url}` : ""} | Freshness: ${timeAgo}`;
-        })
-        .join("\n");
+    const trendingTags = extractTrendingHashtags(items);
+    const sourceDiversity = {};
+    const sourceCounts = {};
+
+    items.slice(0, 25).forEach((item, index) => {
+        const source = item?.source || "Unknown";
+        sourceDiversity[source] = sourceDiversity[source] || [];
+        sourceDiversity[source].push(index);
+        sourceCounts[source] = (sourceCounts[source] || 0) + 1;
+    });
+
+    const sourceSummary = Object.entries(sourceCounts)
+        .map(([src, count]) => `${src}: ${count}`)
+        .join(", ");
+
+    const contextParts = [
+        `TRENDING TAGS FROM SIGNALS: ${trendingTags.join(", ") || "AI, LLM, GPT"}`,
+        `SOURCE DIVERSITY: ${sourceSummary}`,
+        "",
+        "LATEST 24H TOOL SIGNALS:"
+    ];
+
+    const sortedByTime = [...items].sort((a, b) => {
+        const timeA = parseTimeAgo(a?.timeAgo);
+        const timeB = parseTimeAgo(b?.timeAgo);
+        return timeA - timeB;
+    });
+
+    const limited = sortedByTime.slice(0, 20);
+    limited.forEach((item, index) => {
+        const title = cleanSignalTitle(item?.title || "Untitled AI tool signal");
+        const timeAgo = item?.timeAgo || "fresh";
+        const source = item?.source || "Unknown";
+        const url = item?.url || "";
+        contextParts.push(`${index + 1}. [${source}] ${title}${url ? ` | ${url}` : ""} | ${timeAgo}`);
+    });
+
+    return contextParts.join("\n");
+}
+
+function parseTimeAgo(timeStr) {
+    if (!timeStr) return 999;
+    const match = timeStr.toString().match(/(\d+)\s*([smhd])/i);
+    if (!match) return 999;
+    const amount = parseInt(match[1], 10) || 0;
+    const unit = match[2].toLowerCase();
+    if (unit === "s") return amount / 3600;
+    if (unit === "m") return amount / 60;
+    if (unit === "h") return amount;
+    if (unit === "d") return amount * 24;
+    return 999;
 }
 
 function buildHistoryPrompt(previousTweets = [], limit = HISTORY_TWEET_LIMIT) {
@@ -658,10 +745,45 @@ function composeStructuredTweet({ hook, emoji, body, url, mention, hashtags }) {
     return parts.join(' ').replace(/\s+/g, ' ').trim();
 }
 
+function getContentRelevantHashtags(text, seed = 0) {
+    const content = (text || "").toLowerCase();
+    const relevantTags = [];
+
+    const tagMappings = [
+        { tags: ["#ChatGPT", "#GPT", "#OpenAI"], keywords: ["chatgpt", "gpt", "openai", "chat gpt"] },
+        { tags: ["#Claude", "#Anthropic"], keywords: ["claude", "anthropic"] },
+        { tags: ["#Gemini", "#GoogleAI", "#Google"], keywords: ["gemini", "google ai", "bard"] },
+        { tags: ["#Cursor", "#AIcoding"], keywords: ["cursor", "code", "coding", "programming", "developer"] },
+        { tags: ["#Perplexity", "#AIResearch"], keywords: ["perplexity", "research", "search"] },
+        { tags: ["#Midjourney", "#AIArt"], keywords: ["midjourney", "image", "art", "生成", "visual"] },
+        { tags: ["#Runway", "#AIVideo"], keywords: ["runway", "video", "movie", "film"] },
+        { tags: ["#Suno", "#AIMusic"], keywords: ["suno", "music", "audio", "song"] },
+        { tags: ["#ElevenLabs", "#AIVoice"], keywords: ["elevenlabs", "voice", "speech", "tts"] },
+        { tags: ["#HuggingFace", "#OpenSource"], keywords: ["huggingface", "hugging face", "open source", "model"] },
+        { tags: ["#AIAgent", "#Automation"], keywords: ["agent", "automation", "workflow", "autonomous"] },
+        { tags: ["#LLM", "#LargeLanguageModel"], keywords: ["llm", "language model", "large language"] },
+        { tags: ["#ProductHunt", "#ShowHN"], keywords: ["product hunt", "show hn", "launch"] },
+        { tags: ["#GitHub"], keywords: ["github", "repo", "repository"] },
+    ];
+
+    tagMappings.forEach(({ tags, keywords }) => {
+        if (keywords.some(kw => content.includes(kw))) {
+            relevantTags.push(...tags);
+        }
+    });
+
+    if (!relevantTags.length) {
+        return [pick(TRENDING_AI_HASHTAGS, seed) || "#AITools", pick(DEFAULT_HASHTAGS, seed + 1) || "#AI"];
+    }
+
+    const shuffled = relevantTags.sort(() => Math.random() - 0.5);
+    return shuffled.slice(0, 2);
+}
+
 function formatStructuredTweet(text, seed = 0) {
     const tool = pickToolFromText(text, seed);
-    const hook = pick(EXPERT_HOOK_WORDS, seed).replace(/[^A-Z0-9]/gi, "") || "INSIGHT";
-    const emoji = (text.match(EMOJI_GLOBAL_RE) || [pick(["\uD83D\uDE80", "\uD83D\uDD25", "\u26A1", "\u2728"], seed + 1)])[0] || "\uD83D\uDE80";
+    const hook = pick(EXPERT_HOOK_WORDS, seed).replace(/[^A-Z0-9]/gi, "") || "FRESH";
+    const emoji = (text.match(EMOJI_GLOBAL_RE) || [pick(["\uD83D\uDE80", "\uD83D\uDD25", "\u26A1", "\u2728", "\uD83E\uDDE0", "\uD83D\uDEE0"], seed + 1)])[0] || "\uD83D\uDE80";
 
     const urls = dedupeList(
         extractUrls(text)
@@ -671,19 +793,18 @@ function formatStructuredTweet(text, seed = 0) {
     const url = urls[0] || tool.link || "https://chatgpt.com";
 
     const mentionsRaw = dedupeList((text.match(/@[a-z0-9_]+/gi) || []));
-    const mention = mentionsRaw[0] || tool.handle || (tool.hashtag ? '' : "@OpenAI");
+    const mention = mentionsRaw[0] || tool.handle || "@OpenAI";
 
     let hashtags = dedupeList((text.match(/#[a-z0-9_]+/gi) || []));
     if (!hashtags.length) {
-        hashtags = [pick(DEFAULT_HASHTAGS, seed + 2) || DEFAULT_HASHTAGS[0]];
+        hashtags = getContentRelevantHashtags(text, seed);
     }
     if (hashtags.length < 2) {
-        const extra = pick(DEFAULT_HASHTAGS, seed + 3) || DEFAULT_HASHTAGS[0];
-        if (!hashtags.find((tag) => tag.toLowerCase() === extra.toLowerCase())) {
+        const extra = getContentRelevantHashtags(text, seed + 5)[0];
+        if (extra && !hashtags.find((tag) => tag.toLowerCase() === extra.toLowerCase())) {
             hashtags.push(extra);
         }
     }
-    // If tool has no handle but has a hashtag, add it
     if (!tool.handle && tool.hashtag && !hashtags.includes(tool.hashtag)) {
         hashtags.push(tool.hashtag);
     }
@@ -1282,15 +1403,18 @@ async function requestTweets({
         historyPrompt,
         "",
         "Task:",
-        `Generate ${TARGET_TWEETS} tweets for @AIToolsExplorer.`,
+        `Generate ${TARGET_TWEETS} DISTINCT tweets for @AIToolsExplorer - MAXIMUM 24H OLD TOOLS ONLY!`,
         `Final tweet must be ${TARGET_X_MIN}-${TARGET_X_MAX} X weighted characters (URLs count as ${X_URL_LENGTH}).`,
         `Never exceed ${X_MAX_TWEET_LENGTH} weighted characters.`,
-        "Use this strict format: {HOOK WORD + EMOJI} {BODY} {RELEVANT LINK} {HASHTAGS + MENTIONS}.",
-        "Every tweet must start with one word prefix + colon (example: INSIGHT: ...).",
-        "Do not sound like a journalist or news reporter.",
-        "Tweets must be practical AI tool discoveries with links, hashtags, account tags, and emojis.",
-        "Use only last-24h AI tool launches/updates from the provided signals.",
-        "No incomplete sentence endings and no generic filler output.",
+        "STRICT VARIETY: Each tweet MUST cover a DIFFERENT tool. NO repeats!",
+        "Format: {HOOK} {EMOJI} {BODY} {LINK} {TAGS + MENTION}",
+        "Each tweet uses DIFFERENT hook: LATEST:, FRESH:, JUST:, DROPPED:, SPOTTED:, FOUND:, BUILDER:, LAUNCH:",
+        "Do NOT sound like news - be excited creator sharing discoveries!",
+        "Tweets with links, hashtags, account tags, emojis - practical tool discovery.",
+        "Use source tags: #ProductHunt, #ShowHN, #GitHub, #Reddit - context relevant.",
+        "Trending tags: #AI, #GenAI, #LLM, #Cursor, #OpenSource, #AIAgent - pick relevant.",
+        "No incomplete sentences, no generic filler, no repeat topics.",
+        `CURRENT UTC: ${nowIso} - determine freshness from signal timestamps.`,
         retryFeedback ? `Fix these issues from previous attempt:\n${retryFeedback}` : "",
         "",
         "Return JSON only.",
@@ -1320,10 +1444,12 @@ async function requestTweets({
                     { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
                 ],
                 generationConfig: {
-                    temperature: 0.95,
-                    maxOutputTokens: 4096,
+                    temperature: 0.85,
+                    maxOutputTokens: 8192,
+                    topP: 0.95,
+                    topK: 40,
                     thinkingConfig: {
-                        thinkingBudget: 0,
+                        thinkingBudget: 2048,
                     },
                 },
             }),
