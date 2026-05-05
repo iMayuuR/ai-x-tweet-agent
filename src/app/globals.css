@@ -16,8 +16,8 @@
   --text-muted: #5a5a6e;
   --accent-blue: #1d9bf0;
   --accent-blue-hover: #1a8cd8;
-  --accent-purple: #7c3aed;
-  --accent-gradient: linear-gradient(135deg, #1d9bf0, #7c3aed);
+  --accent-purple: #a78bfa;
+  --accent-gradient: linear-gradient(135deg, #60a5fa, #a78bfa);
   --accent-glow: rgba(29, 155, 240, 0.15);
   --success: #00c853;
   --error: #ff4757;

@@ -359,16 +359,17 @@ async function fetchHackerNewsAsk(limit = 10) {
  */
 async function fetchGitHubAITools(limit = 20) {
     const results = [];
-    const now = Date.now() / 1000;
-    const last24h = now - 86400;
+    const now = new Date();
+    const last24hDate = new Date(now.getTime() - 86400000).toISOString().split('.')[0] + 'Z';
+    const last24h = Math.floor(now.getTime() / 1000) - 86400;
 
     try {
         const queries = [
-            `topic:ai pushed:>${last24h} stars:>=5 archived:false`,
-            `topic:machine-learning pushed:>${last24h} stars:>=5 archived:false`,
-            `topic:llm pushed:>${last24h} stars:>=3 archived:false`,
-            `topic:gpt pushed:>${last24h} stars:>=5 archived:false`,
-            `topic:ai-agent pushed:>${last24h} stars:>=3 archived:false`,
+            `topic:ai pushed:>${last24hDate} stars:>=5 archived:false`,
+            `topic:machine-learning pushed:>${last24hDate} stars:>=5 archived:false`,
+            `topic:llm pushed:>${last24hDate} stars:>=3 archived:false`,
+            `topic:gpt pushed:>${last24hDate} stars:>=5 archived:false`,
+            `topic:ai-agent pushed:>${last24hDate} stars:>=3 archived:false`,
         ];
 
         for (const query of queries.slice(0, 2)) {
@@ -475,14 +476,14 @@ async function fetchGitHubTrending(limit = 20) {
  * Fetch newly created AI repos from last 7 days
  */
 async function fetchGitHubFreshRepos(limit = 20) {
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split("T")[0];
     const results = [];
 
     const topics = ["ai", "llm", "gpt", "openai", "chatbot", "machine-learning", "ai-agent", "rag"];
 
     for (const topic of topics.slice(0, 3)) {
         try {
-            const query = `topic:${topic} created:>=${sevenDaysAgo} stars:>5`;
+            const query = `topic:${topic} created:>=${oneDayAgo} stars:>5`;
             const url = `https://api.github.com/search/repositories?q=${encodeURIComponent(query)}&sort=created&order=desc&per_page=12`;
             const response = await fetch(url, {
                 next: { revalidate: 3600 },
@@ -749,25 +750,7 @@ export async function getTrendingNews() {
 
     let combined = dedupeByTitleAndUrl(fresh24h);
 
-    if (combined.length < 10) {
-        const last48Items = allItems
-            .filter((item) => item.timestamp >= last48h && item.timestamp < last24h)
-            .filter((item) => isToolSignalTitle(item.title, item.source))
-            .sort((a, b) => b.timestamp - a.timestamp);
-
-        const extra48h = dedupeByTitleAndUrl(last48Items);
-        combined = [...combined, ...extra48h].slice(0, 30);
-    }
-
-    if (combined.length < 8) {
-        const googleFallback = await fetchGoogleNewsFallback(20);
-        const fallbackFresh = googleFallback
-            .filter((item) => item.timestamp >= last48h)
-            .filter((item) => isToolSignalTitle(item.title, item.source));
-
-        combined = dedupeByTitleAndUrl([...combined, ...fallbackFresh]).slice(0, 40);
-    }
-
+    // Return strictly 24h news as requested
     if (combined.length > 0) {
         const prioritized = prioritizeSources(combined);
         const diversified = diversifyBySource(prioritized);

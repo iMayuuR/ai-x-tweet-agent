@@ -21,7 +21,7 @@ const DUPLICATE_JACCARD_THRESHOLD = 0.56;
 const DEFAULT_HASHTAGS = [
     "#AITools", "#AIBuilders", "#GenAI", "#AIGeneration", "#MachineLearning",
     "#DeepLearning", "#LLM", "#OpenSource", "#TechNews", "#Innovation",
-    "#Startup", "#Coding", "#DevTools", "#ProductHunt", "#ShowHN"
+    "#Startup", "#Coding", "#DevTools", "#ProductHunt"
 ];
 const TRENDING_AI_HASHTAGS = [
     "#AI", "#GenAI", "#LLM", "#ChatGPT", "#Claude", "#Gemini", "#Cursor",
@@ -121,6 +121,7 @@ const SYSTEM_PROMPT = `You are @AIToolsExplorer - an AI EXPERIMENTER who shares 
 - Fresh launches (< 24h old)
 
 ❌🚫 FORBIDDEN (even if in signal list):
+- MENTIONING THE SOURCE (e.g., do NOT say "On GitHub", "Found on ProductHunt", "Show HN", etc.)
 - Generic statements like "great tool for developers", "useful AI", "check this out"
 - Tool descriptions without specific features
 - Old known tools WITHOUT new updates (e.g., "ChatGPT is awesome" with no new feature)
@@ -133,7 +134,9 @@ const SYSTEM_PROMPT = `You are @AIToolsExplorer - an AI EXPERIMENTER who shares 
 
 🎣 HOOKS: LAUNCH:, JUST DROPPED:, FRESH:, SPOTTED:, BUILT:, SHIPPED:, NEW:, RELEASED:
 
-📝 TWEET: "HOOK: ToolName NEW_FEATURE. TargetAudience. URL [SOURCE] #Tag1 #Tag2"
+📝 TWEET: "HOOK: ToolName NEW_FEATURE. TargetAudience. URL #Tag1 #Tag2"
+
+⚠️ IMPORTANT: The tweet must look like your ORIGINAL discovery. DO NOT mention where you found it.
 
 OUTPUT JSON:
 {
@@ -751,7 +754,7 @@ function getContentRelevantHashtags(text, seed = 0) {
         { tags: ["#HuggingFace", "#OpenSource"], keywords: ["huggingface", "hugging face", "open source", "model"] },
         { tags: ["#AIAgent", "#Automation"], keywords: ["agent", "automation", "workflow", "autonomous"] },
         { tags: ["#LLM", "#LargeLanguageModel"], keywords: ["llm", "language model", "large language"] },
-        { tags: ["#ProductHunt", "#ShowHN"], keywords: ["product hunt", "show hn", "launch"] },
+        { tags: ["#ProductHunt"], keywords: ["product hunt", "launch"] },
         { tags: ["#GitHub"], keywords: ["github", "repo", "repository"] },
     ];
 
