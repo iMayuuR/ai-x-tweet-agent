@@ -279,10 +279,10 @@ async function fetchProductHuntFeed(limit = 20) {
 /**
  * Fetch Show HN stories that often contain tool launches.
  */
-async function fetchHackerNews(limit = 20) {
+async function fetchHackerNews(limit = 25) {
     try {
         const topRes = await fetch("https://hacker-news.firebaseio.com/v0/showstories.json", {
-            next: { revalidate: 600 },
+            next: { revalidate: 300 },
         });
         const topIds = await topRes.json();
         const slice = topIds.slice(0, limit);
@@ -290,7 +290,7 @@ async function fetchHackerNews(limit = 20) {
         const items = await Promise.all(
             slice.map((id) =>
                 fetch(`https://hacker-news.firebaseio.com/v0/item/${id}.json`, {
-                    next: { revalidate: 3600 },
+                    next: { revalidate: 1800 },
                 }).then((response) => response.json())
             )
         );
@@ -311,17 +311,108 @@ async function fetchHackerNews(limit = 20) {
 }
 
 /**
+ * Fetch top new Ask HN posts for AI tools discussions
+ */
+async function fetchHackerNewsAsk(limit = 10) {
+    try {
+        const askRes = await fetch("https://hacker-news.firebaseio.com/v0/askstories.json", {
+            next: { revalidate: 600 },
+        });
+        const askIds = await askRes.json();
+        const slice = askIds.slice(0, limit);
+
+        const items = await Promise.all(
+            slice.map((id) =>
+                fetch(`https://hacker-news.firebaseio.com/v0/item/${id}.json`, {
+                    next: { revalidate: 1800 },
+                }).then((r) => r.json())
+            )
+        );
+
+        return items
+            .filter((item) => item && !item.deleted)
+            .map((item) => ({
+                title: `[AskHN] ${item.title}`,
+                url: `https://news.ycombinator.com/item?id=${item.id}`,
+                source: "HackerNews-Ask",
+                timeAgo: getTimeAgo(item.time),
+                timestamp: item.time,
+            }));
+    } catch (error) {
+        console.error("HackerNews Ask fetch error:", error);
+        return [];
+    }
+}
+
+/**
  * Fetch newly pushed AI repositories in last 24h from GitHub.
  */
 async function fetchGitHubAITools(limit = 20) {
-    try {
-        const sinceDate = new Date(Date.now() - 24 * 60 * 60 * 1000)
-            .toISOString()
-            .slice(0, 10);
-        const query = encodeURIComponent(`topic:ai pushed:>=${sinceDate} stars:>=8 archived:false`);
-        const url = `https://api.github.com/search/repositories?q=${query}&sort=updated&order=desc&per_page=${limit}`;
+    const results = [];
+    const now = Date.now() / 1000;
+    const last24h = now - 86400;
 
-        const response = await fetch(url, {
+    try {
+        const queries = [
+            `topic:ai pushed:>${last24h} stars:>=5 archived:false`,
+            `topic:machine-learning pushed:>${last24h} stars:>=5 archived:false`,
+            `topic:llm pushed:>${last24h} stars:>=3 archived:false`,
+            `topic:gpt pushed:>${last24h} stars:>=5 archived:false`,
+            `topic:ai-agent pushed:>${last24h} stars:>=3 archived:false`,
+        ];
+
+        for (const query of queries.slice(0, 2)) {
+            try {
+                const url = `https://api.github.com/search/repositories?q=${encodeURIComponent(query)}&sort=updated&order=desc&per_page=15`;
+                const response = await fetch(url, {
+                    next: { revalidate: 900 },
+                    headers: {
+                        "User-Agent": "ai-x-tweet-agent/1.0",
+                        Accept: "application/vnd.github+json",
+                    },
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    const items = Array.isArray(data?.items) ? data.items : [];
+                    results.push(...items);
+                }
+            } catch (e) {
+                console.error("GitHub query error:", e);
+            }
+        }
+
+        const seen = new Set();
+        const deduped = results.filter(repo => {
+            if (seen.has(repo.full_name)) return false;
+            seen.add(repo.full_name);
+            return true;
+        });
+
+        return deduped.slice(0, limit).map((repo) => {
+            const updatedAt = new Date(repo.updated_at).getTime();
+            const description = repo.description ? ` - ${repo.description}` : "";
+            return {
+                title: `${repo.full_name}${description}`.trim(),
+                url: repo.html_url,
+                source: "GitHub",
+                timeAgo: getTimeAgo(updatedAt),
+                timestamp: Math.floor(updatedAt / 1000),
+                stars: repo.stargazers_count,
+            };
+        });
+    } catch (error) {
+        console.error("GitHub AI tools fetch error:", error);
+        return [];
+    }
+}
+
+/**
+ * Fetch GitHub trending repos for AI category
+ */
+async function fetchGitHubTrending(limit = 15) {
+    try {
+        const response = await fetch("https://api.github.com/search/repositories?q=ai+OR+llm+OR+gpt+OR+machine-learning+OR+gpt4+created:>2024-12-01&sort=stars&order=desc&per_page=20", {
             next: { revalidate: 1800 },
             headers: {
                 "User-Agent": "ai-x-tweet-agent/1.0",
@@ -333,20 +424,19 @@ async function fetchGitHubAITools(limit = 20) {
         const data = await response.json();
         const items = Array.isArray(data?.items) ? data.items : [];
 
-        return items.map((repo) => {
-            const updatedAt = new Date(repo.updated_at).getTime();
-            const description = repo.description ? ` - ${repo.description}` : "";
-
+        return items.slice(0, limit).map((repo) => {
+            const createdAt = new Date(repo.created_at).getTime();
             return {
-                title: `${repo.full_name}${description}`.trim(),
+                title: `${repo.full_name} - ${repo.description || "AI tool"}`,
                 url: repo.html_url,
-                source: "GitHub",
-                timeAgo: getTimeAgo(updatedAt),
-                timestamp: Math.floor(updatedAt / 1000),
+                source: "GitHub-Trending",
+                timeAgo: getTimeAgo(createdAt),
+                timestamp: Math.floor(createdAt / 1000),
+                stars: repo.stargazers_count,
             };
         });
     } catch (error) {
-        console.error("GitHub AI tools fetch error:", error);
+        console.error("GitHub trending fetch error:", error);
         return [];
     }
 }
@@ -531,32 +621,55 @@ function prioritizeSources(items = []) {
 
 /**
  * Return 24h AI tool launches/updates focused feed.
+ * Returns empty array if no fresh content - caller should handle this.
  */
 export async function getTrendingNews() {
-    const [productHunt, hackerNews, githubSignals, communitySignals] = await Promise.all([
-        fetchProductHuntFeed(24),
-        fetchHackerNews(22),
-        fetchGitHubAITools(24),
+    const [productHunt, hackerNews, hackerAsk, githubSignals, githubTrending, communitySignals] = await Promise.all([
+        fetchProductHuntFeed(20),
+        fetchHackerNews(25),
+        fetchHackerNewsAsk(10),
+        fetchGitHubAITools(20),
+        fetchGitHubTrending(15),
         fetchCommunityRssToolSignals(),
     ]);
 
     const now = Date.now() / 1000;
-    // Extend window to 48h to catch more items
-    const primary = [...productHunt, ...hackerNews, ...githubSignals, ...communitySignals]
-        .filter((item) => now - item.timestamp <= 172800) // 48h
+    const last24h = now - 86400;
+    const last48h = now - 172800;
+
+    const allItems = [
+        ...productHunt,
+        ...hackerNews,
+        ...hackerAsk,
+        ...githubSignals,
+        ...githubTrending,
+        ...communitySignals,
+    ];
+
+    const fresh24h = allItems
+        .filter((item) => item.timestamp >= last24h)
         .filter((item) => isToolSignalTitle(item.title, item.source))
         .sort((a, b) => b.timestamp - a.timestamp);
 
-    let combined = dedupeByTitleAndUrl(primary);
+    let combined = dedupeByTitleAndUrl(fresh24h);
 
-    // If less than 15 items, try to fetch from Google News with broader query
-    if (combined.length < 15) {
-        const googleFallback = await fetchGoogleNewsFallback(15);
+    if (combined.length < 10) {
+        const last48Items = allItems
+            .filter((item) => item.timestamp >= last48h && item.timestamp < last24h)
+            .filter((item) => isToolSignalTitle(item.title, item.source))
+            .sort((a, b) => b.timestamp - a.timestamp);
+
+        const extra48h = dedupeByTitleAndUrl(last48Items);
+        combined = [...combined, ...extra48h].slice(0, 30);
+    }
+
+    if (combined.length < 8) {
+        const googleFallback = await fetchGoogleNewsFallback(20);
         const fallbackFresh = googleFallback
-            .filter((item) => now - item.timestamp <= 172800) // 48h
+            .filter((item) => item.timestamp >= last48h)
             .filter((item) => isToolSignalTitle(item.title, item.source));
 
-        combined = dedupeByTitleAndUrl([...combined, ...fallbackFresh]).sort((a, b) => b.timestamp - a.timestamp);
+        combined = dedupeByTitleAndUrl([...combined, ...fallbackFresh]).slice(0, 40);
     }
 
     if (combined.length > 0) {
@@ -565,41 +678,5 @@ export async function getTrendingNews() {
         return diversified.slice(0, 50);
     }
 
-    return [
-        {
-            title: "Cursor AI coding assistant update",
-            url: "https://cursor.com",
-            source: "Fallback",
-            timeAgo: "fresh",
-            timestamp: Math.floor(Date.now() / 1000),
-        },
-        {
-            title: "Perplexity research workflow update",
-            url: "https://perplexity.ai",
-            source: "Fallback",
-            timeAgo: "fresh",
-            timestamp: Math.floor(Date.now() / 1000),
-        },
-        {
-            title: "Google Gemini 1.5 Pro update",
-            url: "https://gemini.google.com",
-            source: "Fallback",
-            timeAgo: "fresh",
-            timestamp: Math.floor(Date.now() / 1000),
-        },
-        {
-            title: "Anthropic Claude 3.5 Sonnet update",
-            url: "https://claude.ai",
-            source: "Fallback",
-            timeAgo: "fresh",
-            timestamp: Math.floor(Date.now() / 1000),
-        },
-        {
-            title: "OpenAI ChatGPT canvas workflows",
-            url: "https://chatgpt.com",
-            source: "Fallback",
-            timeAgo: "fresh",
-            timestamp: Math.floor(Date.now() / 1000),
-        },
-    ];
+    return [];
 }
