@@ -106,43 +106,43 @@ const TOOL_LIBRARY = [
     { name: "Leonardo", handle: "@LeonardoAi_", link: "https://leonardo.ai", audience: "game artists", useCase: "generate assets for game environments quickly", capability: "create consistent visual assets with fine-tuned models" },
 ];
 
-const SYSTEM_PROMPT = `You are @AIToolsExplorer - an AI EXPERIMENTER who shares ONLY brand new tools from TODAY.
+const SYSTEM_PROMPT = `You are @AIToolsExplorer - an AI EXPERIMENTER who shares FRESH discoveries.
 
-🎯 ABSOLUTE RULE: You MUST use ONLY the tools from the SIGNAL LIST below. NOTHING ELSE!
-
-❌🚫 FORBIDDEN TOOLS (NEVER tweet about these unless they have NEW features released in LAST 24 HOURS):
-- ChatGPT, Claude, Gemini, Midjourney, Suno, ElevenLabs, Runway
-- Cursor, Perplexity, Hugging Face, Vercel, Replit, GitHub Copilot
-- Any tool that's been out for more than 1 month
-
-These are OLD. Market knows them. Find something NEW!
+🎯 YOUR JOB: Find and tweet about FRESH tools from the SIGNAL LIST below.
 
 📋 SIGNAL LIST FORMAT:
-"1. [GitHub] repo-name - description | github.com/... | 2h ago"
-"2. [ProductHunt] ToolName - what it does | tool.com | 5h ago"
-"3. [HackerNews] ShowHN: ProjectName | news.ycombinator.com | 8h ago"
+"1. [GitHub] repo-name - description | url | 2h ago"
+"2. [ProductHunt] ToolName - what it does | url | 5h ago"  
+"3. [HackerNews] ProjectName | url | 8h ago"
 
-✅ YOUR JOB:
-1. Read the SIGNAL LIST carefully
-2. Pick tools with timestamp "Xh ago" where X < 24
-3. Tweet ONLY about those specific tools with EXACT names from the list
-4. Include the actual URL from the signal
-5. Add source tag: [GitHub] or [ProductHunt] or [HackerNews]
+✅ ALLOWED (only if in signal list with X < 24h):
+- New tools from GitHub/HackerNews/ProductHunt
+- NEW UPDATES to known tools (ChatGPT new model, Cursor new feature, Claude new version)
+- Fresh launches (< 24h old)
 
-🎣 HOOKS (different each tweet):
-LAUNCH:, JUST DROPPED:, FRESH:, SPOTTED:, BUILT:, SHIPPED:, NEW:, RELEASED:
+❌🚫 FORBIDDEN (even if in signal list):
+- Generic statements like "great tool for developers", "useful AI", "check this out"
+- Tool descriptions without specific features
+- Old known tools WITHOUT new updates (e.g., "ChatGPT is awesome" with no new feature)
+- "This helps everyone" - be SPECIFIC who it's for
 
-📝 TWEET STRUCTURE:
-"HOOK: 🦄 ToolName does SPECIFIC_THING. Who it's for: AUDIENCE. Try it: URL [SOURCE] #Hashtag1 #Hashtag2"
+🔍 FOR NEW UPDATES TO KNOWN TOOLS:
+- If signal says "ChatGPT new model" → tweet about the NEW MODEL
+- If signal says "Cursor 2.0" → tweet about Cursor 2.0 features
+- Must mention WHAT'S NEW in that update
+
+🎣 HOOKS: LAUNCH:, JUST DROPPED:, FRESH:, SPOTTED:, BUILT:, SHIPPED:, NEW:, RELEASED:
+
+📝 TWEET: "HOOK: ToolName NEW_FEATURE. TargetAudience. URL [SOURCE] #Tag1 #Tag2"
 
 OUTPUT JSON:
 {
   "tweets": [
-    { "text": "TWEET HERE", "sourceAge": "Xh ago" }
+    { "text": "TWEET", "sourceAge": "Xh ago" }
   ]
 }
 
-⚠️ CRITICAL: If signal list has LESS than 5 fresh tools (X < 24h), generate FEWER tweets but make each one quality about a FRESH tool!
+⚠️ Generate ${TARGET_TWEETS} tweets. Use different hooks. Each tweet MUST be unique!
 
 Return ONLY JSON!`;
 
@@ -1295,7 +1295,64 @@ function ensureExactTenTweets({ candidateTweets = [], blockedTweets = [], signal
         signalBasedTweets.forEach(tryAdd);
     }
 
+    if (accepted.length < TARGET_TWEETS && signals.length > 0) {
+        const backupTweets = buildSmartBackupTweets(signals, historical, accepted.length);
+        backupTweets.forEach(tryAdd);
+    }
+
     return accepted.slice(0, TARGET_TWEETS);
+}
+
+function buildSmartBackupTweets(signals, blockedTweets, startSeed = 0) {
+    const tweets = [];
+    const now = Date.now() / 1000;
+    const last24h = now - 86400;
+
+    const usedTools = new Set();
+    blockedTweets.forEach(t => {
+        const match = t.match(/^([A-Z][A-Za-z]+):/);
+        if (match) usedTools.add(match[1].toLowerCase());
+    });
+
+    const knownTools = ["chatgpt", "claude", "gemini", "cursor", "perplexity", "midjourney", "suno", "elevenlabs", "runway", "huggingface", "vercel", "replit", "copilot"];
+
+    signals.forEach((signal, idx) => {
+        const title = signal.title || "";
+        const name = title.split(/[|:,\-]/)[0]?.trim().toLowerCase() || "";
+
+        const isKnownTool = knownTools.some(k => name.includes(k));
+
+        if (isKnownTool) {
+            const hasNewIndicator = /new|update|v\d|version|release|feature|launch/i.test(title);
+            if (!hasNewIndicator) return;
+        }
+
+        const toolKey = title.split(/[|:,\-]/)[0]?.trim().toLowerCase() || "newtool";
+        if (usedTools.has(toolKey)) return;
+        usedTools.add(toolKey);
+
+        const source = signal.source || "Unknown";
+        const sourceTag = source.includes("GitHub") ? "[GitHub]" :
+                         source.includes("Hacker") ? "[HackerNews]" :
+                         source.includes("Product") ? "[ProductHunt]" : "[AI]";
+
+        const hashtags = getContentRelevantHashtags(title, startSeed + idx);
+        const url = signal.url || "https://github.com";
+        const hook = pick(EXPERT_HOOK_WORDS, startSeed + idx) || "FRESH";
+
+        const toolName = title.split(/[|:,\-]/)[0]?.trim() || "New Tool";
+        const body = title.length > 80 ? title.slice(0, 80) + "..." : title;
+
+        const text = `${hook}: 🚀 ${body} ${sourceTag} ${url} ${hashtags.slice(0, 2).join(" ")}`;
+
+        tweets.push({
+            text: hardenTweetText(text, startSeed + idx + 200),
+            sourceAge: signal.timeAgo || "fresh",
+            imageUrl: null,
+        });
+    });
+
+    return tweets;
 }
 
 function buildSignalBasedTweets(signals, blockedTweets, startSeed = 0) {
