@@ -106,50 +106,45 @@ const TOOL_LIBRARY = [
     { name: "Leonardo", handle: "@LeonardoAi_", link: "https://leonardo.ai", audience: "game artists", useCase: "generate assets for game environments quickly", capability: "create consistent visual assets with fine-tuned models" },
 ];
 
-const SYSTEM_PROMPT = `You are @AIToolsExplorer - a DEEP LEVEL AI EXPERT who lives in the latest AI tools, GitHub repos, and cutting-edge developments.
+const SYSTEM_PROMPT = `You are @AIToolsExplorer - an AI EXPERIMENTER who shares ONLY brand new tools from TODAY.
 
-🎯 MISSION: Your sole purpose is to find and share the ABSOLUTELY FRESHEST AI discoveries from the last 24 hours. You are NOT a news reporter - you are an EXPERIMENTER who tests tools and shares real findings.
+🎯 ABSOLUTE RULE: You MUST use ONLY the tools from the SIGNAL LIST below. NOTHING ELSE!
 
-🔥 DEEP THINKING REQUIRED: Before each tweet, think:
-- What makes this tool UNIQUE?
-- Why should developers care RIGHT NOW?
-- What's the specific use-case?
-- How is it better/different from existing tools?
+❌🚫 FORBIDDEN TOOLS (NEVER tweet about these unless they have NEW features released in LAST 24 HOURS):
+- ChatGPT, Claude, Gemini, Midjourney, Suno, ElevenLabs, Runway
+- Cursor, Perplexity, Hugging Face, Vercel, Replit, GitHub Copilot
+- Any tool that's been out for more than 1 month
 
-❌ STRICTLY FORBIDDEN (NEVER DO THESE):
-- Generic statements like "useful for developers", "great tool", "check this out"
-- Old/known tools like ChatGPT, Claude, Midjourney unless they have NEW features
-- Tweets without actual tool names from the signal list
-- Generic filler content
-- Tools older than 24 hours
+These are OLD. Market knows them. Find something NEW!
 
-✅ REQUIRED FOR EACH TWEET:
-1. Tool name from SIGNAL LIST (exact name from the list!)
-2. What specific new thing it does
-3. Who it's for (specific audience)
-4. Actual URL to the tool
-5. Source: [GitHub] / [HackerNews] / [ProductHunt] / [Reddit]
-6. 2-3 relevant hashtags based on the tool category
-7. Official handle if available
+📋 SIGNAL LIST FORMAT:
+"1. [GitHub] repo-name - description | github.com/... | 2h ago"
+"2. [ProductHunt] ToolName - what it does | tool.com | 5h ago"
+"3. [HackerNews] ShowHN: ProjectName | news.ycombinator.com | 8h ago"
 
-📋 SIGNAL FORMAT: Each signal looks like "1. [GitHub] tool-name - description | url | 3h ago"
-You MUST use these exact tool names!
+✅ YOUR JOB:
+1. Read the SIGNAL LIST carefully
+2. Pick tools with timestamp "Xh ago" where X < 24
+3. Tweet ONLY about those specific tools with EXACT names from the list
+4. Include the actual URL from the signal
+5. Add source tag: [GitHub] or [ProductHunt] or [HackerNews]
 
-🎣 HOOK WORDS (USE DIFFERENT EACH TIME):
-LAUNCH:, JUST DROPPED:, FRESH:, SPOTTED:, BUILT:, CREATED:, SHIPPED:, RELEASED:, NEW:, LATEST:
+🎣 HOOKS (different each tweet):
+LAUNCH:, JUST DROPPED:, FRESH:, SPOTTED:, BUILT:, SHIPPED:, NEW:, RELEASED:
 
-PERSONA: You are an excited AI engineer who just discovered something fire. Share it like you're showing it to your team!
+📝 TWEET STRUCTURE:
+"HOOK: 🦄 ToolName does SPECIFIC_THING. Who it's for: AUDIENCE. Try it: URL [SOURCE] #Hashtag1 #Hashtag2"
 
 OUTPUT JSON:
 {
   "tweets": [
-    { "text": "YOUR TWEET HERE", "sourceAge": "Xh ago" }
+    { "text": "TWEET HERE", "sourceAge": "Xh ago" }
   ]
 }
 
-⚠️ CRITICAL: Generate ${TARGET_TWEETS} tweets. Each MUST be UNIQUE tool from signal list. NO repeats!
+⚠️ CRITICAL: If signal list has LESS than 5 fresh tools (X < 24h), generate FEWER tweets but make each one quality about a FRESH tool!
 
-Return ONLY JSON, no markdown!`;
+Return ONLY JSON!`;
 
 function normalizeSourceAge(value, seed = 1) {
     if (!value || typeof value !== "string") {
@@ -1295,89 +1290,55 @@ function ensureExactTenTweets({ candidateTweets = [], blockedTweets = [], signal
 
     candidateTweets.forEach(tryAdd);
 
-    if (accepted.length < TARGET_TWEETS) {
-        const backup = buildLocalBackupTweets({
-            blockedTweets: historical,
-            existing: accepted,
-            signals,
-            nowIso,
-        });
-        backup.forEach(tryAdd);
-    }
-
-    if (accepted.length < TARGET_TWEETS) {
-        const nonce = (nowIso || new Date().toISOString()).replace(/\D/g, "").slice(-8);
-        for (let i = 0; i < 100 && accepted.length < TARGET_TWEETS; i += 1) {
-            const tool = TOOL_LIBRARY[(i + nonce.length) % TOOL_LIBRARY.length];
-            const text = hardenTweetText(
-                `${tool.name}${tool.handle ? ` ${tool.handle}` : ""} is delivering strong creator momentum right now with practical wins for ${tool.audience}. Real use-case: ${tool.useCase}. Core edge: ${tool.capability}. ${tool.link} ${DEFAULT_HASHTAGS[0]} ${pick(DEFAULT_HASHTAGS, i + 1)}`,
-                i + nonce.length
-            );
-            const duplicateWithAccepted = accepted.some((item) => isNearDuplicate(item.text, text));
-            const duplicateWithHistory = historical.some((item) => isNearDuplicate(item, text));
-            if (!duplicateWithAccepted && !duplicateWithHistory && !validateTweetText(text).length) {
-                accepted.push({
-                    text,
-                    sourceAge: normalizeSourceAge(tool?.sourceAge, ((i + 5) % 12) + 1),
-                    imageUrl: null,
-                });
-            }
-        }
-    }
-
-    let rescueGuard = 0;
-    while (accepted.length < TARGET_TWEETS && rescueGuard < 280) {
-        const index = accepted.length + rescueGuard;
-        const tool = TOOL_LIBRARY[index % TOOL_LIBRARY.length];
-        const text = hardenTweetText(
-            `${tool.name}${tool.handle ? ` ${tool.handle}` : ""} gives builders a practical speed boost. Best use-case: ${tool.useCase}. Why it hits: ${tool.capability}. ${tool.link} ${DEFAULT_HASHTAGS[0]}`,
-            index + 200
-        );
-        const duplicateWithAccepted = accepted.some((item) => isNearDuplicate(item.text, text));
-        const duplicateWithHistory = historical.some((item) => isNearDuplicate(item, text));
-        if (!duplicateWithAccepted && !duplicateWithHistory && !validateTweetText(text).length) {
-            accepted.push({
-                text,
-                sourceAge: normalizeSourceAge(tool?.sourceAge, ((index + 6) % 12) + 1),
-                imageUrl: null,
-            });
-        }
-        rescueGuard += 1;
-    }
-
-    let emergencyGuard = 0;
-    while (accepted.length < TARGET_TWEETS && emergencyGuard < 200) {
-        const index = accepted.length + emergencyGuard;
-        const tool = TOOL_LIBRARY[(index + 3) % TOOL_LIBRARY.length];
-        const tweetObj = buildEmergencyTweet(tool, index + 900);
-        const duplicateWithAccepted = accepted.some((item) => isNearDuplicate(item.text, tweetObj.text));
-        const duplicateWithHistory = historical.some((item) => isNearDuplicate(item, tweetObj.text));
-        if (!duplicateWithAccepted && !duplicateWithHistory && !validateTweetText(tweetObj.text).length) {
-            accepted.push({
-                text: tweetObj.text,
-                sourceAge: normalizeSourceAge(tool?.sourceAge, ((index + 7) % 12) + 1),
-                imageUrl: tweetObj.imageUrl,
-            });
-        }
-        emergencyGuard += 1;
-    }
-
-    let hardFillGuard = 0;
-    while (accepted.length < TARGET_TWEETS && hardFillGuard < 200) {
-        const index = accepted.length + hardFillGuard;
-        const tool = TOOL_LIBRARY[(index + 5) % TOOL_LIBRARY.length];
-        const tweetObj = buildEmergencyTweet(tool, index + 1200);
-        if (!validateTweetText(tweetObj.text).length) {
-            accepted.push({
-                text: tweetObj.text,
-                sourceAge: normalizeSourceAge(tool?.sourceAge, ((index + 8) % 12) + 1),
-                imageUrl: tweetObj.imageUrl,
-            });
-        }
-        hardFillGuard += 1;
+    if (accepted.length < TARGET_TWEETS && signals.length > 0) {
+        const signalBasedTweets = buildSignalBasedTweets(signals, historical, accepted.length);
+        signalBasedTweets.forEach(tryAdd);
     }
 
     return accepted.slice(0, TARGET_TWEETS);
+}
+
+function buildSignalBasedTweets(signals, blockedTweets, startSeed = 0) {
+    const tweets = [];
+    const now = Date.now() / 1000;
+    const last24h = now - 86400;
+
+    const freshSignals = signals
+        .filter(s => s.timestamp >= last24h)
+        .slice(0, 15);
+
+    const usedTools = new Set();
+    blockedTweets.forEach(t => {
+        const match = t.match(/^([A-Z][A-Za-z]+):/);
+        if (match) usedTools.add(match[1].toLowerCase());
+    });
+
+    freshSignals.forEach((signal, idx) => {
+        const toolName = signal.title?.split(/[|:,\-]/)[0]?.trim() || "NewTool";
+        const toolKey = toolName.toLowerCase();
+        if (usedTools.has(toolKey)) return;
+        usedTools.add(toolKey);
+
+        const source = signal.source || "Unknown";
+        const sourceTag = source.includes("GitHub") ? "[GitHub]" :
+                         source.includes("Hacker") ? "[HackerNews]" :
+                         source.includes("Product") ? "[ProductHunt]" : "[AI]";
+
+        const hashtags = getContentRelevantHashtags(signal.title || "", startSeed + idx);
+        const url = signal.url || "https://github.com";
+        const hook = pick(EXPERT_HOOK_WORDS, startSeed + idx) || "FRESH";
+
+        const body = `${toolName} ${sourceTag} - ${signal.title?.slice(0, 100) || "New AI tool"}`;
+        const text = `${hook}: 🚀 ${body} ${url} ${hashtags.slice(0, 2).join(" ")}`;
+
+        tweets.push({
+            text: hardenTweetText(text, startSeed + idx + 100),
+            sourceAge: signal.timeAgo || "fresh",
+            imageUrl: null,
+        });
+    });
+
+    return tweets;
 }
 
 async function requestTweets({
