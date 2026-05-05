@@ -106,35 +106,50 @@ const TOOL_LIBRARY = [
     { name: "Leonardo", handle: "@LeonardoAi_", link: "https://leonardo.ai", audience: "game artists", useCase: "generate assets for game environments quickly", capability: "create consistent visual assets with fine-tuned models" },
 ];
 
-const SYSTEM_PROMPT = `You are @AIToolsExplorer on X - an AI tools curator sharing FRESH discoveries.
+const SYSTEM_PROMPT = `You are @AIToolsExplorer - a DEEP LEVEL AI EXPERT who lives in the latest AI tools, GitHub repos, and cutting-edge developments.
 
-MISSION: ONLY share tools from the provided SIGNAL LIST below. Never use generic/fallback tools!
+🎯 MISSION: Your sole purpose is to find and share the ABSOLUTELY FRESHEST AI discoveries from the last 24 hours. You are NOT a news reporter - you are an EXPERIMENTER who tests tools and shares real findings.
 
-STRICT RULES:
-1. Use ONLY tools from the SIGNAL LIST provided below - nothing else!
-2. Each tool must be from the LAST 24 HOURS
-3. Include source type: [GitHub], [HackerNews], [ProductHunt], [Reddit], etc.
-4. NEVER repeat same tool in different tweets
-5. Each tweet uses a DIFFERENT hook word
-6. URL/Link is MANDATORY for each tweet
+🔥 DEEP THINKING REQUIRED: Before each tweet, think:
+- What makes this tool UNIQUE?
+- Why should developers care RIGHT NOW?
+- What's the specific use-case?
+- How is it better/different from existing tools?
 
-TWEET FORMAT:
-- Hook (FRESH:/LATEST:/JUST:/DROPPED:/SPOTTED:/FOUND:/LAUNCH:) + Emoji
-- What the tool does + why it's useful + who it's for
-- Tool URL (critical!)
-- 2-3 relevant hashtags (#AI, #GenAI, #LLM, #ChatGPT, #Cursor, #OpenSource, #AIAgent, #ProductHunt, #ShowHN)
-- 1 official handle (@OpenAI, @AnthropicAI, @GoogleAI, etc.)
+❌ STRICTLY FORBIDDEN (NEVER DO THESE):
+- Generic statements like "useful for developers", "great tool", "check this out"
+- Old/known tools like ChatGPT, Claude, Midjourney unless they have NEW features
+- Tweets without actual tool names from the signal list
+- Generic filler content
+- Tools older than 24 hours
 
-PERSONA: Excited creator who just found something cool. Not a news reporter!
+✅ REQUIRED FOR EACH TWEET:
+1. Tool name from SIGNAL LIST (exact name from the list!)
+2. What specific new thing it does
+3. Who it's for (specific audience)
+4. Actual URL to the tool
+5. Source: [GitHub] / [HackerNews] / [ProductHunt] / [Reddit]
+6. 2-3 relevant hashtags based on the tool category
+7. Official handle if available
 
-OUTPUT:
+📋 SIGNAL FORMAT: Each signal looks like "1. [GitHub] tool-name - description | url | 3h ago"
+You MUST use these exact tool names!
+
+🎣 HOOK WORDS (USE DIFFERENT EACH TIME):
+LAUNCH:, JUST DROPPED:, FRESH:, SPOTTED:, BUILT:, CREATED:, SHIPPED:, RELEASED:, NEW:, LATEST:
+
+PERSONA: You are an excited AI engineer who just discovered something fire. Share it like you're showing it to your team!
+
+OUTPUT JSON:
 {
   "tweets": [
-    { "text": "FRESH: 🚀 ToolName does X... link.com #AI #ChatGPT @OpenAI", "sourceAge": "3h ago" }
+    { "text": "YOUR TWEET HERE", "sourceAge": "Xh ago" }
   ]
 }
 
-Return JSON only, no markdown. Generate exactly ${TARGET_TWEETS} unique tweets!`;
+⚠️ CRITICAL: Generate ${TARGET_TWEETS} tweets. Each MUST be UNIQUE tool from signal list. NO repeats!
+
+Return ONLY JSON, no markdown!`;
 
 function normalizeSourceAge(value, seed = 1) {
     if (!value || typeof value !== "string") {
@@ -1381,20 +1396,19 @@ async function requestTweets({
         toolSignalContext,
         historyPrompt,
         "",
-        "Task:",
-        `Generate ${TARGET_TWEETS} DISTINCT tweets for @AIToolsExplorer - MAXIMUM 24H OLD TOOLS ONLY!`,
-        `Final tweet must be ${TARGET_X_MIN}-${TARGET_X_MAX} X weighted characters (URLs count as ${X_URL_LENGTH}).`,
-        `Never exceed ${X_MAX_TWEET_LENGTH} weighted characters.`,
-        "STRICT VARIETY: Each tweet MUST cover a DIFFERENT tool. NO repeats!",
-        "Format: {HOOK} {EMOJI} {BODY} {LINK} {TAGS + MENTION}",
-        "Each tweet uses DIFFERENT hook: LATEST:, FRESH:, JUST:, DROPPED:, SPOTTED:, FOUND:, BUILDER:, LAUNCH:",
-        "Do NOT sound like news - be excited creator sharing discoveries!",
-        "Tweets with links, hashtags, account tags, emojis - practical tool discovery.",
-        "Use source tags: #ProductHunt, #ShowHN, #GitHub, #Reddit - context relevant.",
-        "Trending tags: #AI, #GenAI, #LLM, #Cursor, #OpenSource, #AIAgent - pick relevant.",
-        "No incomplete sentences, no generic filler, no repeat topics.",
-        `CURRENT UTC: ${nowIso} - determine freshness from signal timestamps.`,
-        retryFeedback ? `Fix these issues from previous attempt:\n${retryFeedback}` : "",
+        "TASK - READ CAREFULLY:",
+        `Generate ${TARGET_TWEETS} tweets. Each tweet MUST be about a DIFFERENT tool from the signal list below.`,
+        "USE EXACT TOOL NAMES FROM THE SIGNAL LIST - do not make up tool names!",
+        "EVERY tweet needs: Tool Name + What it does + URL + Source [GitHub/HackerNews/ProductHunt] + 2 hashtags + 1 mention",
+        `Tweet length: ${TARGET_X_MIN}-${TARGET_X_MAX} chars (URLs = ${X_URL_LENGTH} chars)`,
+        `NEVER exceed ${X_MAX_TWEET_LENGTH} chars`,
+        "NO GENERIC tweets like 'great tool for developers' - be SPECIFIC about features!",
+        "NO repeats of tools - 10 different tools = 10 tweets",
+        "NO old tools (ChatGPT, Claude, Midjourney) unless they have NEW 24h updates",
+        "Use different hook each time: LAUNCH:, JUST DROPPED:, FRESH:, SPOTTED:, BUILT:, CREATED:, SHIPPED:, RELEASED:",
+        `Current time: ${nowIso}`,
+        "STRICT: If you can't find 10 unique fresh tools, generate FEWER tweets but make them quality!",
+        retryFeedback ? `PREVIOUS ISSUES - FIX:\n${retryFeedback}` : "",
         "",
         "Return JSON only.",
     ]
@@ -1423,12 +1437,12 @@ async function requestTweets({
                     { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
                 ],
                 generationConfig: {
-                    temperature: 0.85,
+                    temperature: 0.9,
                     maxOutputTokens: 8192,
                     topP: 0.95,
                     topK: 40,
                     thinkingConfig: {
-                        thinkingBudget: 2048,
+                        thinkingBudget: 4096,
                     },
                 },
             }),
