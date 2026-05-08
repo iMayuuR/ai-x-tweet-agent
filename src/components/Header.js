@@ -167,7 +167,7 @@ export default function Header({
                 Multi-Platform
             </div>
 
-            <h1>AI Social Agent</h1>
+            <h1>AI X Tweet Agent</h1>
 
             <p className="header-subtitle">
                 Generate & post to X, Instagram, Threads
