@@ -1,7 +1,7 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "MonthBasket | AI Social Agent",
+  title: "AI Social Agent | AI Tweet Generator",
   description:
     "Generate AI-powered posts and publish to X, Instagram, and Threads. Daily viral content powered by Gemini with multi-platform sharing.",
   keywords: [
