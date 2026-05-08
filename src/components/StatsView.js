@@ -62,7 +62,7 @@ export default function StatsView() {
     const platforms = [
         { key: 'x', name: 'X / Twitter', color: '#1d9bf0', icon: '𝕏' },
         { key: 'instagram', name: 'Instagram', color: '#E4405F', icon: '📷' },
-        { key: 'threads', name: 'Threads', color: '#ffffff', icon: '🧵' },
+        { key: 'threads', name: 'Threads', color: '#000000', icon: '@' },
     ];
 
     // Sort daily stats by date (ascending)
