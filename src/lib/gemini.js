@@ -19,14 +19,21 @@ const HISTORY_TWEET_LIMIT = 30;
 const DUPLICATE_JACCARD_THRESHOLD = 0.56;
 
 const DEFAULT_HASHTAGS = [
-    "#AITools", "#AIBuilders", "#GenAI", "#AIGeneration", "#MachineLearning",
-    "#DeepLearning", "#LLM", "#OpenSource", "#TechNews", "#Innovation",
-    "#Startup", "#Coding", "#DevTools", "#ProductHunt"
+    "#AITools", "#AIBuilders", "#GenAI", "#AICoding", "#AIAgent",
+    "#AgentialAI", "#OpenSource", "#TechNews", "#Innovation",
+    "#Startup", "#DevTools", "#ProductHunt", "#MCP",
+    "#BoltNew", "#Lovable", "#CodingAgent", "#AppBuilder",
+    "#BrowserAI", "#ChromeExt", "#AIVideo", "#AIImage",
+    "#AIVoice", "#LLM", "#DeepLearning", "#NoCodeAI",
 ];
 const TRENDING_AI_HASHTAGS = [
     "#AI", "#GenAI", "#LLM", "#ChatGPT", "#Claude", "#Gemini", "#Cursor",
     "#Perplexity", "#Midjourney", "#Suno", "#Runway", "#HuggingFace",
-    "#OpenSource", "#AIAgent", "#Copilot", "#Vercel", "#Replit"
+    "#OpenSource", "#AIAgent", "#Copilot", "#Vercel", "#Replit",
+    "#MCP", "#Devin", "#Lovable", "#BoltNew", "#v0dev", "#Windsurf",
+    "#DeepSeek", "#Groq", "#LangChain", "#CrewAI", "#Cline",
+    "#HeyGen", "#Descript", "#PikaLabs", "#LumaAI", "#Sora",
+    "#Ideogram", "#Firecrawl", "#BrowserAI", "#ChromeExt",
 ];
 const EXPERT_HOOK_WORDS = [
     "FRESH", "LATEST", "NEW", "JUST", "DROPPED", "SPOTTED", "FOUND",
@@ -85,69 +92,160 @@ const EMOJI_GLOBAL_RE = /[\u{1F300}-\u{1FAFF}\u2600-\u27BF]/gu;
 const FRAGMENT_END_RE = /\b(and|or|with|for|to|in|on|at|from|by|of|is|are|was|were|immediate|setup|output|fast|strong|practical|daily|today|now)\b$/i;
 
 const TOOL_LIBRARY = [
-    { name: "ChatGPT", handle: "@OpenAI", link: "https://chatgpt.com", audience: "founders and PMs", useCase: "draft product specs and user stories in minutes", capability: "turn rough notes into clean drafts and action plans" },
-    { name: "Claude", handle: "@AnthropicAI", link: "https://claude.ai", audience: "writers and researchers", useCase: "summarize long docs with high context retention", capability: "reason through long inputs with structured output" },
-    { name: "Gemini", handle: "@GoogleAI", link: "https://gemini.google.com", audience: "analysts and creators", useCase: "convert research into publish-ready content faster", capability: "blend search context with fast drafting workflows" },
-    { name: "Cursor", handle: "@cursor_ai", link: "https://cursor.com", audience: "developers", useCase: "ship features and refactors with less manual boilerplate", capability: "understand codebase context and suggest practical edits" },
-    { name: "Perplexity", handle: "@perplexity_ai", link: "https://perplexity.ai", audience: "operators and founders", useCase: "build fast competitive research briefs with citations", capability: "answer research questions with source-backed responses" },
-    { name: "Runway", handle: "@runwayml", link: "https://runwayml.com", audience: "video creators", useCase: "prototype ad creatives from text prompts quickly", capability: "generate and edit videos with AI-first controls" },
-    { name: "Midjourney", handle: "@midjourney", link: "https://www.midjourney.com", audience: "designers and creators", useCase: "create concept visuals for campaigns and products", capability: "generate high-quality visual styles from short prompts" },
-    { name: "Suno", handle: "@suno_ai_", link: "https://suno.com", audience: "music creators", useCase: "draft soundtrack ideas for short videos and reels", capability: "generate full songs from simple text descriptions" },
-    { name: "ElevenLabs", handle: "@elevenlabsio", link: "https://elevenlabs.io", audience: "podcasters and marketers", useCase: "create multilingual voiceovers for product content", capability: "produce realistic voice output with clear control" },
-    { name: "Hugging Face", handle: "@huggingface", link: "https://huggingface.co", audience: "AI engineers", useCase: "test and compare open models for real tasks", capability: "host, discover, and run open-source AI models fast" },
-    { name: "GitHub Copilot", handle: "@GitHubCopilot", link: "https://github.com/features/copilot", audience: "software teams", useCase: "speed up PR cycles and repetitive implementation work", capability: "assist coding workflows directly in the IDE" },
-    { name: "Vercel AI SDK", handle: "@vercel", link: "https://sdk.vercel.ai", audience: "app builders", useCase: "ship production AI features with streaming UX quickly", capability: "provide primitives to build reliable AI apps faster" },
-    { name: "Replit", handle: "@Replit", link: "https://replit.com", audience: "full-stack devs", useCase: "deploy prototypes from a single browser tab", capability: "code, collaborate, and ship in one unified environment" },
-    { name: "Canva", handle: "@canva", link: "https://canva.com", audience: "marketers", useCase: "create on-brand assets without deep design skills", capability: "generate and edit visual content with simple AI tools" },
-    { name: "Mistral", handle: "@MistralAI", link: "https://mistral.ai", audience: "developers", useCase: "run efficient open models on local hardware", capability: "deploy high-performance models with low latency" },
-    { name: "Synthesia", handle: "@synthesiaIO", link: "https://www.synthesia.io", audience: "L&D teams", useCase: "turn text scripts into training videos instantly", capability: "generate AI avatars that speak multiple languages" },
-    { name: "Jasper", handle: "@heyjasperai", link: "https://www.jasper.ai", audience: "marketing teams", useCase: "scale blog and social content production", capability: "generate on-brand marketing copy at scale" },
-    { name: "Notion AI", handle: "@NotionHQ", link: "https://www.notion.so", audience: "knowledge workers", useCase: "organize workspace notes into clear summaries", capability: "analyze and generate text directly in your docs" },
-    { name: "Leonardo", handle: "@LeonardoAi_", link: "https://leonardo.ai", audience: "game artists", useCase: "generate assets for game environments quickly", capability: "create consistent visual assets with fine-tuned models" },
+    { name: "ChatGPT", handle: "@OpenAI", link: "https://chatgpt.com", audience: "founders and PMs", useCase: "draft product specs and user stories in minutes", capability: "turn rough notes into clean drafts and action plans", hashtag: "#ChatGPT", category: "llm-chat" },
+    { name: "Claude", handle: "@AnthropicAI", link: "https://claude.ai", audience: "writers and researchers", useCase: "summarize long docs with high context retention", capability: "reason through long inputs with structured output", hashtag: "#Claude", category: "llm-chat" },
+    { name: "Gemini", handle: "@GoogleAI", link: "https://gemini.google.com", audience: "analysts and creators", useCase: "convert research into publish-ready content faster", capability: "blend search context with fast drafting workflows", hashtag: "#Gemini", category: "llm-chat" },
+    { name: "Cursor", handle: "@cursor_ai", link: "https://cursor.com", audience: "developers", useCase: "ship features and refactors with less manual boilerplate", capability: "understand codebase context and suggest practical edits", hashtag: "#Cursor", category: "coding" },
+    { name: "Perplexity", handle: "@perplexity_ai", link: "https://perplexity.ai", audience: "operators and founders", useCase: "build fast competitive research briefs with citations", capability: "answer research questions with source-backed responses", hashtag: "#Perplexity", category: "search" },
+    { name: "Runway", handle: "@runwayml", link: "https://runwayml.com", audience: "video creators", useCase: "prototype ad creatives from text prompts quickly", capability: "generate and edit videos with AI-first controls", hashtag: "#Runway", category: "video" },
+    { name: "Midjourney", handle: "@midjourney", link: "https://www.midjourney.com", audience: "designers and creators", useCase: "create concept visuals for campaigns and products", capability: "generate high-quality visual styles from short prompts", hashtag: "#Midjourney", category: "image" },
+    { name: "Suno", handle: "@suno_ai_", link: "https://suno.com", audience: "music creators", useCase: "draft soundtrack ideas for short videos and reels", capability: "generate full songs from simple text descriptions", hashtag: "#SunoAI", category: "audio" },
+    { name: "ElevenLabs", handle: "@elevenlabsio", link: "https://elevenlabs.io", audience: "podcasters and marketers", useCase: "create multilingual voiceovers for product content", capability: "produce realistic voice output with clear control", hashtag: "#ElevenLabs", category: "audio" },
+    { name: "Hugging Face", handle: "@huggingface", link: "https://huggingface.co", audience: "AI engineers", useCase: "test and compare open models for real tasks", capability: "host, discover, and run open-source AI models fast", hashtag: "#HuggingFace", category: "platform" },
+    { name: "GitHub Copilot", handle: "@GitHubCopilot", link: "https://github.com/features/copilot", audience: "software teams", useCase: "speed up PR cycles and repetitive implementation work", capability: "assist coding workflows directly in the IDE", hashtag: "#GitHubCopilot", category: "coding" },
+    { name: "Vercel AI SDK", handle: "@vercel", link: "https://sdk.vercel.ai", audience: "app builders", useCase: "ship production AI features with streaming UX quickly", capability: "provide primitives to build reliable AI apps faster", hashtag: "#Vercel", category: "platform" },
+    { name: "Replit", handle: "@Replit", link: "https://replit.com", audience: "full-stack devs", useCase: "deploy prototypes from a single browser tab", capability: "code, collaborate, and ship in one unified environment", hashtag: "#Replit", category: "coding" },
+    { name: "Canva", handle: "@canva", link: "https://canva.com", audience: "marketers", useCase: "create on-brand assets without deep design skills", capability: "generate and edit visual content with simple AI tools", hashtag: "#Canva", category: "design" },
+    { name: "Mistral", handle: "@MistralAI", link: "https://mistral.ai", audience: "developers", useCase: "run efficient open models on local hardware", capability: "deploy high-performance models with low latency", hashtag: "#Mistral", category: "llm-chat" },
+    { name: "Synthesia", handle: "@synthesiaIO", link: "https://www.synthesia.io", audience: "L&D teams", useCase: "turn text scripts into training videos instantly", capability: "generate AI avatars that speak multiple languages", hashtag: "#Synthesia", category: "video" },
+    { name: "Jasper", handle: "@heyjasperai", link: "https://www.jasper.ai", audience: "marketing teams", useCase: "scale blog and social content production", capability: "generate on-brand marketing copy at scale", hashtag: "#JasperAI", category: "content" },
+    { name: "Notion AI", handle: "@NotionHQ", link: "https://www.notion.so", audience: "knowledge workers", useCase: "organize workspace notes into clear summaries", capability: "analyze and generate text directly in your docs", hashtag: "#NotionAI", category: "productivity" },
+    { name: "Leonardo", handle: "@LeonardoAi_", link: "https://leonardo.ai", audience: "game artists", useCase: "generate assets for game environments quickly", capability: "create consistent visual assets with fine-tuned models", hashtag: "#LeonardoAI", category: "image" },
+    // Deep AI tools
+    { name: "Jules", handle: "@Google", link: "https://developers.google.com/jules", audience: "developers", useCase: "build AI agents with natural language programming", capability: "create autonomous coding agents that understand complex tasks", hashtag: "#Jules", category: "coding-agent" },
+    { name: "Chrome MCP", handle: "@GoogleChrome", link: "https://developer.chrome.com/docs/mcp/overview", audience: "web developers", useCase: "connect Chrome browser to MCP-compatible AI tools", capability: "control browser tabs, pages, and extensions via AI agents", hashtag: "#MCP #ChromeDevTools", category: "mcp-browser" },
+    { name: "Devin", handle: "@cognition_labs", link: "https://www.cognition-labs.com/", audience: "engineering teams", useCase: "delegate full development tasks to an autonomous AI engineer", capability: "plan and execute multi-file coding tasks like a senior dev", hashtag: "#Devin", category: "coding-agent" },
+    { name: "Lovable", handle: "@lovable_dev", link: "https://lovable.dev", audience: "founders and indie makers", useCase: "build full-stack web apps from natural language descriptions", capability: "generate complete production apps with database and auth", hashtag: "#Lovable", category: "app-builder" },
+    { name: "Bolt", handle: "@stackblitz", link: "https://bolt.new", audience: "full-stack developers", useCase: "prompt-to-app with live preview in browser", capability: "spin up complete web apps instantly with AI prompting", hashtag: "#BoltNew", category: "app-builder" },
+    { name: "v0", handle: "@vercel", link: "https://v0.dev", audience: "frontend devs", useCase: "generate production React UI components from text prompts", capability: "create shadcn/ui components with Tailwind CSS instantly", hashtag: "#v0dev", category: "ui-generator" },
+    { name: "Windsurf", handle: "@windsurf_ai", link: "https://codeium.com/windsurf", audience: "developers", useCase: "AI-native IDE with deep codebase understanding", capability: "understand multi-file context and suggest architectural changes", hashtag: "#Windsurf", category: "coding" },
+    { name: "Cline", handle: null, link: "https://github.com/cline/cline", audience: "VS Code users", useCase: "autonomous coding agent directly in VS Code", capability: "edit files, run terminal commands, and use browser autonomously", hashtag: "#Cline #AIAgent", category: "coding-agent" },
+    { name: "Aider", handle: null, link: "https://aider.chat", audience: "terminal-native developers", useCase: "AI pair programming directly in the terminal", capability: "edit multiple files with git-aware context understanding", hashtag: "#Aider #AIPairProgramming", category: "coding-agent" },
+    { name: "DeepSeek", handle: "@deepseek_ai", link: "https://deepseek.com", audience: "AI developers", useCase: "run state-of-art reasoning models at lower cost", capability: "perform chain-of-thought reasoning with open-weight models", hashtag: "#DeepSeek", category: "llm-chat" },
+    { name: "Groq", handle: "@GroqInc", link: "https://groq.com", audience: "AI builders", useCase: "run inference at extreme speed with LPU hardware", capability: "serve LLM inference at 300+ tokens/second with open models", hashtag: "#Groq", category: "inference" },
+    { name: "Together AI", handle: "@togethercompute", link: "https://together.ai", audience: "ML engineers", useCase: "train, fine-tune, and deploy open models at scale", capability: "access 100+ open models via fast API with competitive pricing", hashtag: "#TogetherAI", category: "platform" },
+    { name: "Replicate", handle: "@replicate", link: "https://replicate.com", audience: "AI tinkerers", useCase: "run and share ML models with one-line API calls", capability: "access thousands of community models with simple API", hashtag: "#Replicate", category: "platform" },
+    { name: "Fal", handle: "@fal_ai", link: "https://fal.ai", audience: "image/video creators", useCase: "generate images and videos at production speed", capability: "run Flux, Stable Diffusion and video models with fastest inference", hashtag: "#falAI", category: "image" },
+    { name: "LangChain", handle: "@LangChainAI", link: "https://langchain.com", audience: "AI engineers", useCase: "build RAG, agents, and LLM apps with modular framework", capability: "compose chains, tools, and memory for complex agent workflows", hashtag: "#LangChain", category: "framework" },
+    { name: "CrewAI", handle: "@crewAIInc", link: "https://crewai.com", audience: "AI builders", useCase: "orchestrate multi-agent AI teams for complex tasks", capability: "define role-based AI agents that collaborate like a team", hashtag: "#CrewAI", category: "agent-framework" },
+    { name: "Dify", handle: null, link: "https://dify.ai", audience: "no-code builders", useCase: "build AI apps with visual workflow designer", capability: "create RAG chatbots and agent workflows without coding", hashtag: "#Dify #NoCodeAI", category: "platform" },
+    { name: "Coze", handle: null, link: "https://www.coze.com", audience: "bot creators", useCase: "build and deploy AI bots to multiple platforms", capability: "design conversational bots with plugins and knowledge bases", hashtag: "#Coze #AIAgent", category: "agent-platform" },
+    { name: "HeyGen", handle: "@HeyGen_Official", link: "https://www.heygen.com", audience: "content creators", useCase: "create AI avatar videos with lip-sync in 40+ languages", capability: "generate photorealistic talking-head videos from text scripts", hashtag: "#HeyGen", category: "video" },
+    { name: "Descript", handle: "@DescriptApp", link: "https://www.descript.com", audience: "podcasters and editors", useCase: "edit video/audio by editing text transcript", capability: "remove filler words, generate voiceovers, and edit like a doc", hashtag: "#Descript", category: "audio-video" },
+    { name: "Pika", handle: "@pika_labs", link: "https://pika.art", audience: "video creators", useCase: "generate short AI video clips from text and images", capability: "create cinematic videos with text-to-video generation", hashtag: "#PikaLabs", category: "video" },
+    { name: "Kling", handle: null, link: "https://klingai.com", audience: "video producers", useCase: "create realistic AI videos with motion and physics simulation", capability: "generate HD videos with realistic object physics and motion", hashtag: "#KlingAI", category: "video" },
+    { name: "Luma", handle: "@LumaLabsAI", link: "https://lumalabs.ai", audience: "3D creators", useCase: "capture and generate 3D scenes with AI", capability: "create photorealistic 3D environments from smartphone photos", hashtag: "#LumaAI", category: "3d" },
+    { name: "Sora", handle: "@OpenAI", link: "https://openai.com/sora", audience: "filmmakers", useCase: "generate cinematic videos from detailed text prompts", capability: "create long-form video scenes with complex camera movements", hashtag: "#Sora", category: "video" },
+    { name: "Ideogram", handle: "@ideogram_ai", link: "https://ideogram.ai", audience: "designers", useCase: "generate images with accurate text rendering built-in", capability: "create logos, posters, and graphics with precise typography", hashtag: "#Ideogram", category: "image" },
+    { name: "Gamma", handle: "@GammaAI", link: "https://gamma.app", audience: "presenters", useCase: "generate professional presentations and docs from prompts", capability: "create slide decks and documents with AI design layouts", hashtag: "#GammaAI", category: "content" },
+    { name: "Mem0", handle: null, link: "https://mem0.ai", audience: "AI developers", useCase: "add long-term memory layer to AI agents and apps", capability: "store, update, and retrieve user context across conversations", hashtag: "#Mem0 #AIMemory", category: "infrastructure" },
+    { name: "Composio", handle: "@ComposioHQ", link: "https://composio.dev", audience: "agent developers", useCase: "connect AI agents to 250+ tools with managed auth", capability: "give agents access to Gmail, GitHub, Slack with OAuth handling", hashtag: "#Composio", category: "agent-tools" },
+    { name: "Tavily", handle: "@tavily_ai", link: "https://tavily.com", audience: "AI app builders", useCase: "real-time web search API optimized for AI agents", capability: "deliver structured search results designed for LLM consumption", hashtag: "#Tavily", category: "search-api" },
+    { name: "Exa", handle: "@exa_labs", link: "https://exa.ai", audience: "AI developers", useCase: "semantic search API built for AI agents", capability: "find content by meaning not keywords with embeddings search", hashtag: "#ExaAI", category: "search-api" },
+    { name: "Firecrawl", handle: "@firecrawl_dev", link: "https://firecrawl.dev", audience: "AI builders", useCase: "turn any website into clean markdown for LLMs", capability: "scrape, crawl, and convert web content to LLM-ready format", hashtag: "#Firecrawl", category: "data" },
+    { name: "Harpa", handle: null, link: "https://harpa.ai", audience: "Chrome users", useCase: "AI copilot in browser for automation and research", capability: "automate web tasks, summarize pages, and extract data", hashtag: "#HarpaAI", category: "browser-extension" },
+    { name: "Merlin", handle: null, link: "https://merlin.foyer.work", audience: "Chrome users", useCase: "AI assistant on every website with chat and summarization", capability: "chat with any webpage, summarize YouTube, and write emails", hashtag: "#MerlinAI", category: "browser-extension" },
+    { name: "Monica", handle: null, link: "https://monica.im", audience: "Chrome users", useCase: "all-in-one AI assistant with browser sidebar", capability: "chat, write, summarize, and translate on any webpage", hashtag: "#MonicaAI", category: "browser-extension" },
+    { name: "Raycast", handle: "@raycastapp", link: "https://raycast.com", audience: "Mac power users", useCase: "AI-enhanced productivity launcher and automation toolkit", capability: "control apps, run commands, and access AI from keyboard", hashtag: "#Raycast", category: "productivity" },
+    { name: "Warp", handle: "@warpdotdev", link: "https://warp.dev", audience: "terminal users", useCase: "AI-powered terminal with smart autocomplete and agent mode", capability: "generate commands, debug errors, and run agents from terminal", hashtag: "#WarpDev", category: "devtools" },
+    { name: "Arc Browser", handle: "@arcinternet", link: "https://arc.net", audience: "power browsers", useCase: "reimagine web browsing with AI organization and spaces", capability: "auto-organize tabs, summarize pages, and create focused spaces", hashtag: "#ArcBrowser", category: "browser" },
+    { name: "Obsidian", handle: "@obsdmd", link: "https://obsidian.md", audience: "knowledge workers", useCase: "AI-enhanced personal knowledge management with plugins", capability: "link ideas, query notes, and build second brain with AI assist", hashtag: "#Obsidian", category: "productivity" },
+    { name: "SuperWhisper", handle: null, link: "https://superwhisper.com", audience: "Mac users", useCase: "voice-to-text AI dictation with 99% accuracy on Mac", capability: "transcribe across all apps with context-aware formatting", hashtag: "#SuperWhisper", category: "voice" },
+    { name: "Granola", handle: null, link: "https://granola.so", audience: "meeting attendees", useCase: "AI notetaker that listens and enhances your own notes", capability: "combine your sparse notes with audio transcription for full context", hashtag: "#GranolaAI", category: "productivity" },
+    { name: "Cursor Directory", handle: null, link: "https://cursor.directory", audience: "Cursor users", useCase: "discover and install Cursor rules for any framework", capability: "get IDE context rules for React, Next.js, Python, and 100+ frameworks", hashtag: "#CursorDirectory", category: "devtools" },
+    { name: "OpenHands", handle: null, link: "https://github.com/All-Hands-AI/OpenHands", audience: "developers", useCase: "open-source autonomous AI software engineer agent", capability: "write code, run commands, browse web, and deploy apps", hashtag: "#OpenHands #CodingAgent", category: "coding-agent" },
+    { name: "Poolside", handle: "@poolsideai", link: "https://poolside.ai", audience: "enterprise dev teams", useCase: "AI coding assistant built for enterprise security needs", capability: "generate and review code with enterprise-grade privacy", hashtag: "#Poolside", category: "coding" },
+    { name: "Augment Code", handle: "@AugmentCode", link: "https://www.augmentcode.com", audience: "professional devs", useCase: "AI coding assistant that understands large codebases", capability: "provide context-aware suggestions across multi-million-line repos", hashtag: "#AugmentCode", category: "coding" },
 ];
 
-const SYSTEM_PROMPT = `You are @AIToolsExplorer - an AI EXPERIMENTER who shares FRESH discoveries.
+const SYSTEM_PROMPT = `You are @AIToolsExplorer - an AI TOOL HUNTER who discovers and deeply researches brand-new AI tools.
 
-🎯 YOUR JOB: Find and tweet about FRESH tools from the SIGNAL LIST below.
+🎯 YOUR JOB: Find FRESH AI tools from the SIGNAL LIST and write DEEP, SPECIFIC tweets about what each tool ACTUALLY DOES.
 
 📋 SIGNAL LIST FORMAT:
 "1. [GitHub] repo-name - description | url | 2h ago"
-"2. [ProductHunt] ToolName - what it does | url | 5h ago"  
+"2. [ProductHunt] ToolName - what it does | url | 5h ago"
 "3. [HackerNews] ProjectName | url | 8h ago"
 
-✅ ALLOWED (only if in signal list with X < 24h):
-- New tools from GitHub/HackerNews/ProductHunt
-- NEW UPDATES to known tools (ChatGPT new model, Cursor new feature, Claude new version)
-- Fresh launches (< 24h old)
+================================================================
+✅ WHAT TO TWEET ABOUT:
+================================================================
+- NEW AI tools launched in last 24h (GitHub repos, ProductHunt launches, HN Show HN posts)
+- NEW FEATURES/UPDATES to known tools (e.g., Cursor shipped MCP support, Claude got web search)
+- New MCP servers and Chrome AI extensions
+- New AI coding agents, browser tools, and automation tools
 
-❌🚫 FORBIDDEN (even if in signal list):
-- MENTIONING THE SOURCE (e.g., do NOT say "On GitHub", "Found on ProductHunt", "Show HN", etc.)
-- Generic statements like "great tool for developers", "useful AI", "check this out"
-- Tool descriptions without specific features
-- Old known tools WITHOUT new updates (e.g., "ChatGPT is awesome" with no new feature)
-- "This helps everyone" - be SPECIFIC who it's for
+================================================================
+🔬 DEPTH REQUIREMENT - CRITICAL:
+================================================================
+Each tweet MUST include:
+1. Tool NAME (exact name from signal list)
+2. WHAT IT DOES (be specific - not "helps developers", but "generates React hooks from API schemas")
+3. WHO IT'S FOR (specific audience - "frontend devs shipping Next.js apps", not just "developers")
+4. WHY IT MATTERS (the key innovation or time saved)
+5. A real URL (from the signal list)
+6. 2 RELEVANT hashtags (research them - use #MCP for MCP tools, #CodingAgent for coding agents, etc.)
+7. 1 RELEVANT @handle (research the actual tool's Twitter/X handle)
 
-🔍 FOR NEW UPDATES TO KNOWN TOOLS:
-- If signal says "ChatGPT new model" → tweet about the NEW MODEL
-- If signal says "Cursor 2.0" → tweet about Cursor 2.0 features
-- Must mention WHAT'S NEW in that update
+================================================================
+🚫 ABSOLUTELY FORBIDDEN:
+================================================================
+- ❌ "great tool for developers" / "useful for everyone" / "check this out"
+- ❌ MENTIONING SOURCE ("on GitHub", "Show HN", "from ProductHunt", "trending on")
+- ❌ GENERIC TOOL NAMES ("this tool", "a new AI assistant", "this AI app")
+- ❌ TWEETING ABOUT TOOLS NOT IN THE SIGNAL LIST
+- ❌ Old tools without new updates (no "ChatGPT is great" unless there's a NEW feature)
+- ❌ INCOMPLETE TWEETS - every tweet must end with a complete sentence, hashtag, or URL
+- ❌ TWEETS CUT OFF MID-SENTENCE - complete the thought before hitting length limits
 
-🎣 HOOKS: LAUNCH:, JUST DROPPED:, FRESH:, SPOTTED:, BUILT:, SHIPPED:, NEW:, RELEASED:
+================================================================
+🎣 HOOKS (use different ones!):
+================================================================
+FRESH: | LAUNCH: | JUST DROPPED: | SPOTTED: | BUILT: | SHIPPED: | NEW: | RELEASED: | DISCOVERED:
 
-📝 TWEET: "HOOK: ToolName NEW_FEATURE. TargetAudience. URL #Tag1 #Tag2"
+================================================================
+📝 TWEET STRUCTURE:
+================================================================
+"HOOK: 🚀 ToolName does X for Y audience. Key innovation: Z difference. URL @handle #Tag1 #Tag2"
 
-⚠️ IMPORTANT: The tweet must look like your ORIGINAL discovery. DO NOT mention where you found it.
+EXAMPLES:
+GOOD: "FRESH: 🚀 MCPサーバー-Chrome lets AI agents control your browser tabs, pages, and network requests directly. Built for AI developers building autonomous web agents. https://github.com/example/mcp-chrome @GoogleChrome #MCP #ChromeDevTools"
+GOOD: "LAUNCH: 🚀 Jules by Google is an AI coding agent that plans, writes, and executes multi-file tasks autonomously. For engineering teams shipping complex PRs faster. https://developers.google.com/jules @Google #Jules #CodingAgent"
+BAD: "FRESH: 🚀 Great new AI tool for developers. Check it out. https://example.com #AI #coding"
 
+================================================================
+HASHTAG RESEARCH RULES:
+================================================================
+- For MCP/model context protocol tools → use #MCP #ModelContextProtocol
+- For AI coding agents → use #CodingAgent or #AIAgent
+- For Chrome/browser AI tools → use #ChromeExt or #BrowserAI
+- For AI app builders → use #AppBuilder or #NoCode
+- For AI video tools → use #AIVideo or #VideoGen
+- For open source → use #OpenSource
+- Research each tool's category and use SPECIFIC hashtags, not generic #AI #tools
+
+================================================================
+ACCOUNT TAG RESEARCH:
+================================================================
+- Check if the tool has an official Twitter/X account
+- Use @GoogleChrome for Chrome-related tools
+- Use @Google for Google-made tools (Jules, etc.)
+- Use @OpenAI for OpenAI tools
+- If not sure about handle, use the tool's category hashtag instead
+
+================================================================
 OUTPUT JSON:
+================================================================
 {
   "tweets": [
-    { "text": "TWEET", "sourceAge": "Xh ago" }
+    { "text": "COMPLETE TWEET TEXT", "sourceAge": "Xh ago" }
   ]
 }
 
-⚠️ Generate ${TARGET_TWEETS} tweets. Use different hooks. Each tweet MUST be unique!
+Generate ${TARGET_TWEETS} tweets. Each MUST be about a DIFFERENT tool from the signal list.
+Every tweet MUST be complete (no cut-off sentences). Use different hooks for each.
 
-Return ONLY JSON!`;
+Return ONLY valid JSON!`;
 
 function normalizeSourceAge(value, seed = 1) {
     if (!value || typeof value !== "string") {
@@ -205,7 +303,18 @@ function extractTrendingHashtags(signals = []) {
         "ai", "llm", "gpt", "chatgpt", "claude", "gemini", "cursor", "perplexity",
         "midjourney", "runway", "suno", "elevenlabs", "huggingface", "copilot", "vercel",
         "openai", "anthropic", "google", "meta", "mistral", "agent", "coding",
-        "image", "video", "audio", "music", "生成", "api", "sdk", "open source"
+        "image", "video", "audio", "music", "api", "sdk", "open source",
+        // Deep tool discovery
+        "mcp", "model context protocol", "jules", "devin", "lovable", "bolt",
+        "v0", "windsurf", "cline", "aider", "deepseek", "groq", "together",
+        "replicate", "fal", "langchain", "crewai", "dify", "coze",
+        "heygen", "descript", "pika", "kling", "luma", "sora", "ideogram",
+        "gamma", "mem0", "composio", "tavily", "exa", "firecrawl",
+        "harpa", "merlin", "monica", "raycast", "warp", "arc browser",
+        "obsidian", "superwhisper", "granola", "chrome", "browser",
+        "synthesia", "jasper", "notion", "leonardo", "canva", "replit",
+        "poolside", "augment", "openhands", "stability", "cohere",
+        "codeium", "tabnine", "extension", "plugin", "framework",
     ];
 
     signals.forEach(signal => {
@@ -609,12 +718,25 @@ function trimToMaxLength(text, max = MAX_RAW_TWEET_LENGTH) {
 function ensureOneWordPrefix(text, seed = 0) {
     let output = (text || "").trim();
 
-    output = output.replace(/^[^\w@#]+/u, "").trim();
-    output = output.replace(/^[A-Za-z][A-Za-z0-9_-]{1,24}\s+AI\s+tool\s+find:\s*/i, "").trim();
-    output = output.replace(/^[A-Za-z][A-Za-z0-9_-]{1,24}:\s*/i, "").trim();
-    output = output.replace(/^(INSIGHT|SPOTLIGHT|HOTDROP|BREAKOUT|POWERMOVE)\b\s*/i, "").trim();
+    // Check if already has a valid prefix (e.g. "FRESH:", "LAUNCH:")
+    if (ONE_WORD_PREFIX_RE.test(output)) {
+        return output; // Preserve existing prefix intact
+    }
 
-    const prefix = pick(EXPERT_HOOK_WORDS, seed).replace(/[^A-Z0-9]/gi, "") || "INSIGHT";
+    // Remove any leading non-word characters
+    output = output.replace(/^[^\w@#]+/u, "").trim();
+
+    // Remove any existing multi-word prefix like "Name AI tool find:"
+    if (/^[A-Za-z][A-Za-z0-9_-]{1,24}\s+AI\s+tool\s+find:\s*/i.test(output)) {
+        output = output.replace(/^[A-Za-z][A-Za-z0-9_-]{1,24}\s+AI\s+tool\s+find:\s*/i, "").trim();
+    }
+
+    // Only remove old prefix if it's a known hook word, to avoid stripping actual content
+    if (/^(INSIGHT|SPOTLIGHT|HOTDROP|BREAKOUT|POWERMOVE|FRESH|LATEST|NEW|JUST|DROPPED|SPOTTED|FOUND|BUILDER|LAUNCH)\b\s*/i.test(output)) {
+        output = output.replace(/^(INSIGHT|SPOTLIGHT|HOTDROP|BREAKOUT|POWERMOVE|FRESH|LATEST|NEW|JUST|DROPPED|SPOTTED|FOUND|BUILDER|LAUNCH)\b\s*/i, "").trim();
+    }
+
+    const prefix = pick(EXPERT_HOOK_WORDS, seed).replace(/[^A-Z0-9]/gi, "") || "FRESH";
     return `${prefix}: ${output}`.replace(/\s+/g, " ").trim();
 }
 
@@ -743,19 +865,76 @@ function getContentRelevantHashtags(text, seed = 0) {
 
     const tagMappings = [
         { tags: ["#ChatGPT", "#GPT", "#OpenAI"], keywords: ["chatgpt", "gpt", "openai", "chat gpt"] },
-        { tags: ["#Claude", "#Anthropic"], keywords: ["claude", "anthropic"] },
+        { tags: ["#Claude", "#AnthropicAI", "#Anthropic"], keywords: ["claude", "anthropic"] },
         { tags: ["#Gemini", "#GoogleAI", "#Google"], keywords: ["gemini", "google ai", "bard"] },
-        { tags: ["#Cursor", "#AIcoding"], keywords: ["cursor", "code", "coding", "programming", "developer"] },
-        { tags: ["#Perplexity", "#AIResearch"], keywords: ["perplexity", "research", "search"] },
-        { tags: ["#Midjourney", "#AIArt"], keywords: ["midjourney", "image", "art", "生成", "visual"] },
-        { tags: ["#Runway", "#AIVideo"], keywords: ["runway", "video", "movie", "film"] },
-        { tags: ["#Suno", "#AIMusic"], keywords: ["suno", "music", "audio", "song"] },
-        { tags: ["#ElevenLabs", "#AIVoice"], keywords: ["elevenlabs", "voice", "speech", "tts"] },
-        { tags: ["#HuggingFace", "#OpenSource"], keywords: ["huggingface", "hugging face", "open source", "model"] },
-        { tags: ["#AIAgent", "#Automation"], keywords: ["agent", "automation", "workflow", "autonomous"] },
-        { tags: ["#LLM", "#LargeLanguageModel"], keywords: ["llm", "language model", "large language"] },
-        { tags: ["#ProductHunt"], keywords: ["product hunt", "launch"] },
-        { tags: ["#GitHub"], keywords: ["github", "repo", "repository"] },
+        { tags: ["#Cursor", "#AICoding", "#AIDev"], keywords: ["cursor", "code", "coding", "programming", "developer"] },
+        { tags: ["#Perplexity", "#AIResearch", "#AISearch"], keywords: ["perplexity", "research", "search"] },
+        { tags: ["#Midjourney", "#AIArt", "#AIImage"], keywords: ["midjourney", "image", "art", "visual", "生成"] },
+        { tags: ["#Runway", "#AIVideo", "#VideoGen"], keywords: ["runway", "video", "movie", "film"] },
+        { tags: ["#SunoAI", "#AIMusic", "#MusicGen"], keywords: ["suno", "music", "audio", "song"] },
+        { tags: ["#ElevenLabs", "#AIVoice", "#TTS"], keywords: ["elevenlabs", "voice", "speech", "tts"] },
+        { tags: ["#HuggingFace", "#OpenSource", "#ML"], keywords: ["huggingface", "hugging face", "open source", "model"] },
+        { tags: ["#AIAgent", "#AgenticAI", "#Automation"], keywords: ["agent", "automation", "workflow", "autonomous"] },
+        { tags: ["#LLM", "#LargeLanguageModel", "#GenAI"], keywords: ["llm", "language model", "large language"] },
+        { tags: ["#ProductHunt", "#Launch", "#Startup"], keywords: ["product hunt", "launch"] },
+        { tags: ["#GitHub", "#OpenSource", "#Repo"], keywords: ["github", "repo", "repository"] },
+        // Deep tool tags
+        { tags: ["#MCP", "#ModelContextProtocol"], keywords: ["mcp", "model context protocol"] },
+        { tags: ["#Jules", "#GoogleAI"], keywords: ["jules"] },
+        { tags: ["#Devin", "#AICoding", "#CodingAgent"], keywords: ["devin"] },
+        { tags: ["#Lovable", "#AppBuilder", "#NoCode"], keywords: ["lovable"] },
+        { tags: ["#BoltNew", "#AppBuilder", "#FullStack"], keywords: ["bolt", "bolt.new", "bolt new"] },
+        { tags: ["#v0dev", "#UIDev", "#ReactJS"], keywords: ["v0", "v0 dev", "v0.dev"] },
+        { tags: ["#Windsurf", "#AIDE", "#CodingTools"], keywords: ["windsurf", "codeium"] },
+        { tags: ["#Cline", "#VSCode", "#CodingAgent"], keywords: ["cline"] },
+        { tags: ["#Aider", "#AIPairProgramming", "#OpenSource"], keywords: ["aider"] },
+        { tags: ["#DeepSeek", "#OpenSourceLLM", "#Reasoning"], keywords: ["deepseek"] },
+        { tags: ["#Groq", "#LPU", "#FastInference"], keywords: ["groq"] },
+        { tags: ["#TogetherAI", "#OpenModels", "#FineTuning"], keywords: ["together", "together ai"] },
+        { tags: ["#Replicate", "#MLModels", "#ComfyUI"], keywords: ["replicate"] },
+        { tags: ["#FalAI", "#ImageGen", "#FastAI"], keywords: ["fal", "fal.ai", "fal ai"] },
+        { tags: ["#LangChain", "#RAG", "#LLMFramework"], keywords: ["langchain", "lang graph"] },
+        { tags: ["#CrewAI", "#MultiAgent", "#AgentTeam"], keywords: ["crewai", "crew ai"] },
+        { tags: ["#Dify", "#NoCodeAI", "#AIApps"], keywords: ["dify"] },
+        { tags: ["#Coze", "#AIBot", "#AgentBuilder"], keywords: ["coze"] },
+        { tags: ["#HeyGen", "#AIAvatar", "#VideoGen"], keywords: ["heygen"] },
+        { tags: ["#Descript", "#Podcasting", "#VideoEdit"], keywords: ["descript"] },
+        { tags: ["#PikaLabs", "#AIVideo", "#Text2Video"], keywords: ["pika", "pika labs"] },
+        { tags: ["#KlingAI", "#AIVideo", "#ChinaAI"], keywords: ["kling"] },
+        { tags: ["#LumaAI", "#3DGen", "#NeRF"], keywords: ["luma", "lumalabs"] },
+        { tags: ["#Sora", "#OpenAI", "#VideoGen"], keywords: ["sora"] },
+        { tags: ["#Ideogram", "#LogoGen", "#TypographyAI"], keywords: ["ideogram"] },
+        { tags: ["#GammaAI", "#AIPresentation", "#SlidesAI"], keywords: ["gamma"] },
+        { tags: ["#Mem0", "#AIMemory", "#AIAgent"], keywords: ["mem0", "memory"] },
+        { tags: ["#Composio", "#AgentTools", "#Integration"], keywords: ["composio"] },
+        { tags: ["#Tavily", "#SearchAPI", "#AIAgent"], keywords: ["tavily", "web search"] },
+        { tags: ["#ExaAI", "#SemanticSearch", "#SearchAPI"], keywords: ["exa", "semantic search"] },
+        { tags: ["#Firecrawl", "#WebScraping", "#LLMData"], keywords: ["firecrawl", "scrape", "crawl"] },
+        { tags: ["#HarpaAI", "#BrowserAI", "#ChromeExt"], keywords: ["harpa"] },
+        { tags: ["#MerlinAI", "#BrowserAI", "#ChromeExt"], keywords: ["merlin"] },
+        { tags: ["#MonicaAI", "#BrowserAI", "#ProductivityAI"], keywords: ["monica"] },
+        { tags: ["#Raycast", "#MacTools", "#Productivity"], keywords: ["raycast"] },
+        { tags: ["#WarpDev", "#TerminalAI", "#DevTools"], keywords: ["warp"] },
+        { tags: ["#ArcBrowser", "#WebBrowser", "#Productivity"], keywords: ["arc browser"] },
+        { tags: ["#Obsidian", "#PKM", "#SecondBrain"], keywords: ["obsidian"] },
+        { tags: ["#SuperWhisper", "#VoiceAI", "#MacTools"], keywords: ["superwhisper", "whisper"] },
+        { tags: ["#GranolaAI", "#MeetingNotes", "#Productivity"], keywords: ["granola"] },
+        { tags: ["#Mistral", "#OpenSourceLLM", "#EuropeAI"], keywords: ["mistral", "mixtral"] },
+        { tags: ["#Synthesia", "#AIAvatar", "#VideoGen"], keywords: ["synthesia"] },
+        { tags: ["#JasperAI", "#ContentAI", "#MarketingAI"], keywords: ["jasper"] },
+        { tags: ["#NotionAI", "#Productivity", "#Workspace"], keywords: ["notion"] },
+        { tags: ["#LeonardoAI", "#GameArt", "#AIArt"], keywords: ["leonardo"] },
+        { tags: ["#CanvaAI", "#Design", "#MarketingAI"], keywords: ["canva"] },
+        { tags: ["#Replit", "#FullStack", "#AIIDE"], keywords: ["replit"] },
+        { tags: ["#Llama", "#MetaAI", "#OpenSourceLLM"], keywords: ["llama", "meta ai"] },
+        { tags: ["#Cohere", "#EnterpriseAI", "#RAG"], keywords: ["cohere", "command"] },
+        { tags: ["#StabilityAI", "#ImageGen", "#OpenSource"], keywords: ["stability", "stable diffusion"] },
+        { tags: ["#OpenHands", "#CodingAgent", "#OpenSource"], keywords: ["openhands", "all hands"] },
+        { tags: ["#Poolside", "#AICoding", "#Enterprise"], keywords: ["poolside"] },
+        { tags: ["#AugmentCode", "#AICoding", "#IDE"], keywords: ["augment code", "augmentcode"] },
+        { tags: ["#Vercel", "#WebDev", "#Deployment"], keywords: ["vercel"] },
+        { tags: ["#Copilot", "#GitHub", "#AICode"], keywords: ["copilot", "github copilot"] },
+        { tags: ["#Gemini", "#GoogleAI", "#Multimodal"], keywords: ["gemini"] },
     ];
 
     tagMappings.forEach(({ tags, keywords }) => {
@@ -797,13 +976,21 @@ function formatStructuredTweet(text, seed = 0) {
             hashtags.push(extra);
         }
     }
-    if (!tool.handle && tool.hashtag && !hashtags.includes(tool.hashtag)) {
-        hashtags.push(tool.hashtag);
+    // Add tool's own hashtag if present
+    if (tool.hashtag) {
+        const toolTags = tool.hashtag.split(/\s+/);
+        for (const tt of toolTags) {
+            if (!hashtags.find((tag) => tag.toLowerCase() === tt.toLowerCase())) {
+                hashtags.push(tt);
+                if (hashtags.length >= MAX_HASHTAGS) break;
+            }
+        }
     }
     hashtags = hashtags.slice(0, MAX_HASHTAGS);
 
+    // PRESERVE body content - only use fallback if too short
     let body = cleanBodyForStructure(text);
-    if (!body) {
+    if (!body || body.length < 30) {
         body = `${tool.name} helps ${tool.audience} using ${tool.capability}. Best use-case: ${tool.useCase}`;
     }
     body = ensureBodySentence(body);
@@ -1130,9 +1317,61 @@ function detectHandle(name = "") {
     if (value.includes("suno")) return "@suno_ai_";
     if (value.includes("elevenlabs")) return "@elevenlabsio";
     if (value.includes("hugging face")) return "@huggingface";
-    if (value.includes("vercel")) return "@vercel";
+    if (value.includes("vercel") || value.includes("v0")) return "@vercel";
     if (value.includes("copilot") || value.includes("github")) return "@GitHubCopilot";
-    return null; // Return null to trigger hashtag fallback
+    // Deep tool handles
+    if (value.includes("devin") || value.includes("cognition")) return "@cognition_labs";
+    if (value.includes("lovable")) return "@lovable_dev";
+    if (value.includes("bolt") || value.includes("stackblitz")) return "@stackblitz";
+    if (value.includes("windsurf") || value.includes("codeium")) return "@windsurf_ai";
+    if (value.includes("deepseek")) return "@deepseek_ai";
+    if (value.includes("groq")) return "@GroqInc";
+    if (value.includes("together")) return "@togethercompute";
+    if (value.includes("replicate")) return "@replicate";
+    if (value.includes("fal")) return "@fal_ai";
+    if (value.includes("langchain")) return "@LangChainAI";
+    if (value.includes("crewai") || value.includes("crew")) return "@crewAIInc";
+    if (value.includes("heygen")) return "@HeyGen_Official";
+    if (value.includes("descript")) return "@DescriptApp";
+    if (value.includes("pika")) return "@pika_labs";
+    if (value.includes("sora")) return "@OpenAI";
+    if (value.includes("luma")) return "@LumaLabsAI";
+    if (value.includes("ideogram")) return "@ideogram_ai";
+    if (value.includes("gamma")) return "@GammaAI";
+    if (value.includes("mistral")) return "@MistralAI";
+    if (value.includes("canva")) return "@canva";
+    if (value.includes("notion")) return "@NotionHQ";
+    if (value.includes("replit")) return "@Replit";
+    if (value.includes("synthesia")) return "@synthesiaIO";
+    if (value.includes("jasper")) return "@heyjasperai";
+    if (value.includes("leonardo")) return "@LeonardoAi_";
+    if (value.includes("composio")) return "@ComposioHQ";
+    if (value.includes("tavily")) return "@tavily_ai";
+    if (value.includes("exa")) return "@exa_labs";
+    if (value.includes("firecrawl")) return "@firecrawl_dev";
+    if (value.includes("raycast")) return "@raycastapp";
+    if (value.includes("warp")) return "@warpdotdev";
+    if (value.includes("arc")) return "@arcinternet";
+    if (value.includes("obsidian")) return "@obsdmd";
+    if (value.includes("jules")) return "@Google";
+    if (value.includes("chrome") || value.includes("mcp")) return "@GoogleChrome";
+    if (value.includes("poolside")) return "@poolsideai";
+    if (value.includes("augment")) return "@AugmentCode";
+    if (value.includes("meta") || value.includes("llama")) return "@AIatMeta";
+    if (value.includes("cohere") || value.includes("command")) return "@cohere";
+    if (value.includes("stability")) return "@StabilityAI";
+    if (value.includes("mem0")) return null; // No handle, use hashtag
+    if (value.includes("dify")) return null; // Use hashtag
+    if (value.includes("coze")) return null; // Use hashtag
+    if (value.includes("cline")) return null; // Open source, use hashtag
+    if (value.includes("aider")) return null; // Open source, use hashtag
+    if (value.includes("kling")) return null; // Chinese tool, use hashtag
+    if (value.includes("harpa")) return null; // Use hashtag
+    if (value.includes("merlin")) return null; // Use hashtag
+    if (value.includes("monica")) return null; // Use hashtag
+    if (value.includes("superwhisper")) return null; // Use hashtag
+    if (value.includes("granola")) return null; // Use hashtag
+    return null;
 }
 
 function buildSignalToolOptions(signals = []) {
@@ -1317,7 +1556,7 @@ function buildSmartBackupTweets(signals, blockedTweets, startSeed = 0) {
         if (match) usedTools.add(match[1].toLowerCase());
     });
 
-    const knownTools = ["chatgpt", "claude", "gemini", "cursor", "perplexity", "midjourney", "suno", "elevenlabs", "runway", "huggingface", "vercel", "replit", "copilot", "mistral", "anthropic", "openai", "google"];
+    const knownTools = ["chatgpt", "claude", "gemini", "cursor", "perplexity", "midjourney", "suno", "elevenlabs", "runway", "huggingface", "vercel", "replit", "copilot", "mistral", "anthropic", "openai", "google", "jules", "devin", "lovable", "bolt", "windsurf", "cline", "aider", "deepseek", "groq", "langchain", "crewai", "heygen", "descript", "pika", "kling", "luma", "sora", "ideogram", "gamma", "mem0", "composio", "tavily", "exa", "firecrawl", "harpa", "merlin", "monica", "raycast", "warp", "obsidian", "synthesia", "jasper", "notion", "leonardo", "canva", "mcp", "chrome", "poolside", "augment", "openhands", "stability", "cohere", "replicate", "fal"];
 
     const knownHandles = {
         "chatgpt": "@OpenAI",
@@ -1337,8 +1576,44 @@ function buildSmartBackupTweets(signals, blockedTweets, startSeed = 0) {
         "replit": "@Replit",
         "copilot": "@GitHubCopilot",
         "mistral": "@MistralAI",
-        "meta": "@MetaAI",
+        "meta": "@AIatMeta",
         "stability": "@StabilityAI",
+        // Deep tools
+        "jules": "@Google",
+        "devin": "@cognition_labs",
+        "lovable": "@lovable_dev",
+        "bolt": "@stackblitz",
+        "windsurf": "@windsurf_ai",
+        "deepseek": "@deepseek_ai",
+        "groq": "@GroqInc",
+        "langchain": "@LangChainAI",
+        "crewai": "@crewAIInc",
+        "heygen": "@HeyGen_Official",
+        "descript": "@DescriptApp",
+        "pika": "@pika_labs",
+        "luma": "@LumaLabsAI",
+        "ideogram": "@ideogram_ai",
+        "gamma": "@GammaAI",
+        "composio": "@ComposioHQ",
+        "tavily": "@tavily_ai",
+        "exa": "@exa_labs",
+        "firecrawl": "@firecrawl_dev",
+        "raycast": "@raycastapp",
+        "warp": "@warpdotdev",
+        "obsidian": "@obsdmd",
+        "synthesia": "@synthesiaIO",
+        "jasper": "@heyjasperai",
+        "notion": "@NotionHQ",
+        "leonardo": "@LeonardoAi_",
+        "canva": "@canva",
+        "replicate": "@replicate",
+        "fal": "@fal_ai",
+        "poolside": "@poolsideai",
+        "augment": "@AugmentCode",
+        "cohere": "@cohere",
+        "sora": "@OpenAI",
+        "chrome": "@GoogleChrome",
+        "mcp": "@GoogleChrome",
     };
 
     signals.forEach((signal, idx) => {
@@ -1440,21 +1715,55 @@ async function requestTweets({
         toolSignalContext,
         historyPrompt,
         "",
-        "TASK - READ CAREFULLY:",
-        `Generate ${TARGET_TWEETS} tweets. Each tweet MUST be about a DIFFERENT tool from the signal list below.`,
-        "USE EXACT TOOL NAMES FROM THE SIGNAL LIST - do not make up tool names!",
-        "EVERY tweet needs: Tool Name + What it does + URL + Source [GitHub/HackerNews/ProductHunt] + 2 hashtags + 1 mention",
-        `Tweet length: ${TARGET_X_MIN}-${TARGET_X_MAX} chars (URLs = ${X_URL_LENGTH} chars)`,
-        `NEVER exceed ${X_MAX_TWEET_LENGTH} chars`,
-        "NO GENERIC tweets like 'great tool for developers' - be SPECIFIC about features!",
-        "NO repeats of tools - 10 different tools = 10 tweets",
-        "NO old tools (ChatGPT, Claude, Midjourney) unless they have NEW 24h updates",
-        "Use different hook each time: LAUNCH:, JUST DROPPED:, FRESH:, SPOTTED:, BUILT:, CREATED:, SHIPPED:, RELEASED:",
-        `Current time: ${nowIso}`,
-        "STRICT: If you can't find 10 unique fresh tools, generate FEWER tweets but make them quality!",
-        retryFeedback ? `PREVIOUS ISSUES - FIX:\n${retryFeedback}` : "",
+        "═══════════════════════════════════════",
+        "CRITICAL TASK INSTRUCTIONS:",
+        "═══════════════════════════════════════",
         "",
-        "Return JSON only.",
+        `You MUST generate ${TARGET_TWEETS} tweets. Each tweet about a DIFFERENT tool from the signal list.`,
+        "",
+        "🔍 DEEP RESEARCH PER TOOL:",
+        "- Look at the description and URL in the signal - understand what the tool ACTUALLY does",
+        "- For GitHub repos: read the description, understand the use case",
+        "- For ProductHunt: understand the target audience from the tagline",
+        "- Be SPECIFIC: 'generates TypeScript types from OpenAPI specs' NOT 'useful tool'",
+        "",
+        "📝 COMPLETENESS - EVERY TWEET MUST BE COMPLETE:",
+        "- Full sentences that end properly (period, hashtag, URL, or @handle)",
+        "- NEVER cut off mid-sentence or mid-word",
+        "- If a tweet is too long, rewrite it shorter instead of truncating",
+        `- Each tweet must be ${TARGET_X_MIN}-${TARGET_X_MAX} X-weighted chars`,
+        `- URLs count as ${X_URL_LENGTH} chars in X-weighted count`,
+        `- NEVER exceed ${X_MAX_TWEET_LENGTH} chars`,
+        "",
+        "🏷️ HASHTAG RESEARCH:",
+        "- For MCP servers → use #MCP",
+        "- For coding agents → use #CodingAgent or #AIAgent",
+        "- For Chrome/browser tools → use #ChromeExt or #BrowserAI",
+        "- For app builders → use #AppBuilder or #NoCode",
+        "- Research the specific category and use RELEVANT hashtags",
+        "- Use 2 hashtags per tweet, relevant to the specific tool",
+        "",
+        "👤 ACCOUNT TAGGING:",
+        "- Check if the tool/project has a known Twitter handle",
+        "- Google/Chrome tools → @GoogleChrome or @Google",
+        "- OpenAI tools → @OpenAI",
+        "- Independent tools → find their actual handle or use a category hashtag",
+        "- Each tweet needs at least 1 @mention",
+        "",
+        "❌ ABSOLUTELY FORBIDDEN:",
+        "- Generic descriptions ('great tool', 'check this out', 'useful AI')",
+        "- Mentioning source ('on GitHub', 'Show HN', 'ProductHunt launched')",
+        "- Old tools without NEW updates (no ChatGPT/Claude/Midjourney unless NEW feature)",
+        "- Repeating the same tool in multiple tweets",
+        "- Incomplete/cut-off sentences",
+        "- Making up tool names not in the signal list",
+        "",
+        "🎣 Use different hooks: FRESH: LAUNCH: JUST DROPPED: SPOTTED: BUILT: SHIPPED: NEW: RELEASED:",
+        "",
+        retryFeedback ? `⚠️ PREVIOUS ATTEMPT HAD ISSUES - FIX THESE:\n${retryFeedback}\n` : "",
+        `Current UTC time: ${nowIso}`,
+        "",
+        "Return ONLY valid JSON with exactly ${TARGET_TWEETS} tweets.",
     ]
         .filter(Boolean)
         .join("\n");
