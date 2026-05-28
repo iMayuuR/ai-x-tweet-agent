@@ -3,7 +3,45 @@
     "allow": [
       "Bash(npm run:*)",
       "Bash(node -c \"src/app/page.js\")",
-      "WebSearch"
+      "WebSearch",
+      "Bash(git pull *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(npx *)",
+      "Bash(Get-ChildItem .contexthub -ErrorAction SilentlyContinue)",
+      "Bash(Select-Object Name)",
+      "Read(//c/Users/mayur/.claude/**)",
+      "Bash(npm list *)",
+      "Bash(pip list *)",
+      "Bash(npm view *)",
+      "Bash(npm search *)",
+      "WebFetch(domain:github.com)",
+      "Bash(curl -s http://localhost:3000/mcp)",
+      "Bash(curl -s http://localhost:3000/health)",
+      "Bash(tasklist)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(gh api *)",
+      "Bash(taskkill //F //PID 2848)",
+      "WebFetch(domain:www.npmjs.com)",
+      "Bash(pkill -f \"contexthub\")",
+      "PowerShell(node scripts\\\\test-gemini.js)",
+      "PowerShell(Invoke-WebRequest -Method Post -Uri http://localhost:3000/api/generate -ContentType \"application/json\" -Body \"{}\" -UseBasicParsing)",
+      "PowerShell(Invoke-RestMethod -Method Post -Uri http://localhost:3000/api/generate/ -ContentType \"application/json\" -Body \"{}\")",
+      "Bash(curl *)"
     ]
+  },
+  "mcpServers": {
+    "contexthub": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@imayuur/contexthub",
+        "start"
+      ],
+      "env": {
+        "CONTEXTHUB_TOKEN": "Y29udGV4dGh1Yi1hdXRoLTE3NzkzOTc0NTYxMTA=.da9c3e18850e74fb56d71a0108457808e5991ccd02d28cf5a201ff5d13261ddb"
+      }
+    }
   }
 }
