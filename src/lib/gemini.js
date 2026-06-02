@@ -1542,6 +1542,16 @@ function ensureExactTenTweets({ candidateTweets = [], blockedTweets = [], signal
         backupTweets.forEach(tryAdd);
     }
 
+    if (accepted.length < TARGET_TWEETS) {
+        const localBackupTweets = buildLocalBackupTweets({
+            blockedTweets: historical,
+            existing: accepted,
+            signals,
+            nowIso,
+        });
+        localBackupTweets.forEach(tryAdd);
+    }
+
     return accepted.slice(0, TARGET_TWEETS);
 }
 
@@ -1763,7 +1773,7 @@ async function requestTweets({
         retryFeedback ? `⚠️ PREVIOUS ATTEMPT HAD ISSUES - FIX THESE:\n${retryFeedback}\n` : "",
         `Current UTC time: ${nowIso}`,
         "",
-        "Return ONLY valid JSON with exactly ${TARGET_TWEETS} tweets.",
+        `Return ONLY valid JSON with exactly ${TARGET_TWEETS} tweets.`,
     ]
         .filter(Boolean)
         .join("\n");
@@ -1794,9 +1804,6 @@ async function requestTweets({
                     maxOutputTokens: 8192,
                     topP: 0.95,
                     topK: 40,
-                    thinkingConfig: {
-                        thinkingBudget: 4096,
-                    },
                 },
             }),
         });
