@@ -1904,7 +1904,8 @@ export async function generateTweets(options = {}) {
     }
 
     if (signalsError) {
-        throw new Error(`Cannot generate tweets: ${signalsError}. Check back later for fresh AI tool launches!`);
+        console.warn(`⚠️ Tweet signal warning: ${signalsError} — proceeding with backup tool library.`);
+        // Continue with fallback; do NOT block generation.
     }
 
     const avoidTweets = dedupeTexts(Array.isArray(options?.avoidTweets) ? options.avoidTweets : []);

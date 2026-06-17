@@ -1061,6 +1061,7 @@ export async function getTrendingNews() {
     const now = Date.now() / 1000;
     const last24h = now - 86400;
     const last48h = now - 172800;
+    const last72h = now - 259200;
 
     const allItems = [
         ...productHunt,
@@ -1072,14 +1073,37 @@ export async function getTrendingNews() {
         ...communitySignals,
     ];
 
-    const fresh24h = allItems
+    // Phase 1: Try fresh 24h with signal quality filter
+    let freshSignals = allItems
         .filter((item) => item.timestamp >= last24h)
         .filter((item) => isToolSignalTitle(item.title, item.source))
         .sort((a, b) => b.timestamp - a.timestamp);
 
-    let combined = dedupeByTitleAndUrl(fresh24h);
+    // Phase 2: Fallback to 48h if 24h is empty
+    if (freshSignals.length === 0) {
+        freshSignals = allItems
+            .filter((item) => item.timestamp >= last48h)
+            .filter((item) => isToolSignalTitle(item.title, item.source))
+            .sort((a, b) => b.timestamp - a.timestamp);
+    }
 
-    // Return strictly 24h news as requested
+    // Phase 3: Fallback to 72h if still empty
+    if (freshSignals.length === 0) {
+        freshSignals = allItems
+            .filter((item) => item.timestamp >= last72h)
+            .filter((item) => isToolSignalTitle(item.title, item.source))
+            .sort((a, b) => b.timestamp - a.timestamp);
+    }
+
+    // Phase 4: Last resort — use any recent signals regardless of quality filter
+    if (freshSignals.length === 0) {
+        freshSignals = allItems
+            .filter((item) => item.timestamp >= last72h)
+            .sort((a, b) => b.timestamp - a.timestamp);
+    }
+
+    let combined = dedupeByTitleAndUrl(freshSignals);
+
     if (combined.length > 0) {
         const prioritized = prioritizeSources(combined);
         const diversified = diversifyBySource(prioritized);
