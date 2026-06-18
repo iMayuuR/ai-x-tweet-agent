@@ -385,6 +385,51 @@ const GENERIC_AI_PATTERNS = [
     /roundup|weekly (round)?up|digest|newsletter/i,
 ];
 
+// Keywords that identify genuine AI industry news (acquisitions, model releases, etc.)
+const INDUSTRY_KEYWORDS = [
+    "acquire", "acquisition", "acquired", "bought", "buys",
+    "partnership", "partners with", "teams up with",
+    "releases", "released", "launches", "launched", "ships",
+    "gpt-", "gpt ", " o1", " o3", " o4", "claude", "gemini", "llama", "mistral", "deepseek",
+    "openai", "anthropic", "google ai", "meta ai", "microsoft", "xai", "elon musk",
+    "model", "new model", "next-gen", "breakthrough",
+    "regulation", "regulators", "eu ai act", "ai act",
+    "lawsuit", "sued", "suing", "court",
+    "ipo", "going public", "valuation",
+    "billion", "funding round", "investment",
+    "ban", "banned", "blocked", "restricted",
+    "ceo", "cto", "fired", "joined", "hired", "steps down", "resigns",
+    "benchmark", "test results", "performance", "leaderboard",
+];
+
+// Brands that qualify a news headline as genuine AI industry news
+const MAJOR_AI_BRANDS = [
+    "openai", "anthropic", "google", "deepmind", "gemini", "bard",
+    "microsoft", "copilot", "azure", "xai", "grok", "meta", "llama",
+    "mistral", "cohere", "ai21", "stability ai", "stable diffusion",
+    "deepseek", "moonshot", "qwen", "baichuan", "01.ai",
+    "nvidia", "amd", "intel",
+    "replit", "cursor", "perplexity", "runway", "midjourney", "suno", "elevenlabs",
+    "claude", "chatgpt", "gpt", "dall-e", "whisper", "o1", "o3",
+    "elon musk", "sam altman", "demis hassabis", "sundar pichai",
+    "apple", "siri", "amazon", "alexa", "aws",
+];
+
+function isIndustryNews(title = "", source = "") {
+    const t = (title || "").toLowerCase();
+    if (!t || t.length < 15) return false;
+
+    // Must contain a major AI brand
+    const hasBrand = MAJOR_AI_BRANDS.some((b) => t.includes(b));
+    if (!hasBrand) return false;
+
+    // Must contain industry-specific action keywords
+    const hasAction = INDUSTRY_KEYWORDS.some((kw) => t.includes(kw));
+    if (!hasAction) return false;
+
+    return true;
+}
+
 const COMMUNITY_RSS_SOURCES = [
     { source: "Medium-AITools", url: "https://medium.com/feed/tag/ai-tools", limit: 14 },
     { source: "Medium-GenAI", url: "https://medium.com/feed/tag/generative-ai", limit: 14 },
@@ -1073,36 +1118,52 @@ export async function getTrendingNews() {
         ...communitySignals,
     ];
 
-    // Phase 1: Try fresh 24h with signal quality filter
+    // Phase 1: Tool signals (24h)
     let freshSignals = allItems
         .filter((item) => item.timestamp >= last24h)
         .filter((item) => isToolSignalTitle(item.title, item.source))
         .sort((a, b) => b.timestamp - a.timestamp);
 
-    // Phase 2: Fallback to 48h if 24h is empty
-    if (freshSignals.length === 0) {
+    // Phase 2: Industry news (acquisitions, model releases, regulations) — also in 24h
+    let industryNews = allItems
+        .filter((item) => item.timestamp >= last24h)
+        .filter((item) => isIndustryNews(item.title, item.source))
+        .sort((a, b) => b.timestamp - a.timestamp);
+
+    // Phase 3: Fallback to 48h/72h if both empty
+    if (freshSignals.length === 0 && industryNews.length === 0) {
         freshSignals = allItems
             .filter((item) => item.timestamp >= last48h)
             .filter((item) => isToolSignalTitle(item.title, item.source))
             .sort((a, b) => b.timestamp - a.timestamp);
+
+        industryNews = allItems
+            .filter((item) => item.timestamp >= last48h)
+            .filter((item) => isIndustryNews(item.title, item.source))
+            .sort((a, b) => b.timestamp - a.timestamp);
     }
 
-    // Phase 3: Fallback to 72h if still empty
-    if (freshSignals.length === 0) {
+    if (freshSignals.length === 0 && industryNews.length === 0) {
         freshSignals = allItems
             .filter((item) => item.timestamp >= last72h)
             .filter((item) => isToolSignalTitle(item.title, item.source))
             .sort((a, b) => b.timestamp - a.timestamp);
+
+        industryNews = allItems
+            .filter((item) => item.timestamp >= last72h)
+            .filter((item) => isIndustryNews(item.title, item.source))
+            .sort((a, b) => b.timestamp - a.timestamp);
     }
 
-    // Phase 4: Last resort — use any recent signals regardless of quality filter
-    if (freshSignals.length === 0) {
+    // Phase 4: Last resort — any signals
+    if (freshSignals.length === 0 && industryNews.length === 0) {
         freshSignals = allItems
             .filter((item) => item.timestamp >= last72h)
             .sort((a, b) => b.timestamp - a.timestamp);
     }
 
-    let combined = dedupeByTitleAndUrl(freshSignals);
+    const merged = [...freshSignals, ...industryNews];
+    let combined = dedupeByTitleAndUrl(merged);
 
     if (combined.length > 0) {
         const prioritized = prioritizeSources(combined);
